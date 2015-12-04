@@ -18,12 +18,21 @@ cikNameList					| A list of official registrant names for each CIK in cikList se
 forceUtrValidation			| Set to true to force-enable UTR validation
 edbody-url					| The path to the `edbody.dtd` used to validate the embedded HTML fragments
 edgar-taxonomies-url		| The path to the `edgartaxonomies.xml` which contains a list of taxonomy files that are allowed to be referenced from the company extension taxonomy
+enableDqcValidation | Enable DQC rule validation
 
+###### Example invocations
 
-Example invocation:
-
+Validate a single filing
 ```
-raptorxmlxbrl valxbrl --script=efm-validation.py --script-param="CIK:1234567890" nanonull.xbrl
+  raptorxmlxbrl valxbrl --script=efm_validation.py instance.xml
+```
+Validate a single filing with additional options
+```
+  raptorxmlxbrl valxbrl --script=efm_validation.py --script-param=CIK:1234567890 instance.xml
+```
+Validate a single filing using EFM and DQC rules
+```
+  raptorxmlxbrl valxbrl --script=efm_validation.py --script-param=enableDqcValidation:true instance.xml
 ```
 
 ##### dqc_validation.py
