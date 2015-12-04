@@ -1,0 +1,38 @@
+[
+	{"test":"Contains the text","dim":"Member","text":"Adjust"},
+	{"test":"Contains the text","dim":"Member","text":"Consolidat"},
+	{"test":"Contains the text","dim":"Member","text":"Eliminat"},
+	{"test":"Contains the text","dim":"Member","text":"Netting"},
+	{"test":"Contains the text","dim":"Member","text":"Reconciliat"},
+	{"test":"Contains the text","dim":"Member","text":"Reclass"},
+	{"test":"Equals","dim":"Member","name":"CorporateNonSegmentMember"},
+	{"test":"Equals","dim":"Member","name":"MaterialReconcilingItemsMember"},
+	{"test":"Equals","dim":"Member","name":"ScenarioAdjustmentMember"},
+	{"test":"Equals","dim":"Member","name":"FairValueConcentrationOfRiskMarketRiskManagementEffectsOnIncomeOrNetAssetsMember"},
+	{"test":"Equals","dim":"Member","name":"AccumulatedNetGainLossFromDesignatedOrQualifyingCashFlowHedgesMember"},
+	{"test":"Equals","dim":"Member","name":"AccumulatedNetUnrealizedInvestmentGainLossMember"},
+	{"test":"Equals","dim":"Member","name":"DeferredDerivativeGainLossMember"},
+	{"test":"Equals","dim":"Member","name":"AboveMarketLeasesMember"},
+	{"test":"Equals","dim":"Member","name":"NewAccountingPronouncementEarlyAdoptionEffectMember"},
+	{"test":"Equals","dim":"Axis","name":"StatementEquityComponentsAxis"},
+	{
+	"test":"AND",
+	"arg1":{"test":"Equals","dim":"Axis","name":"LegalEntityAxis"},
+	"arg2":{"test":"Equals","dim":"Member","name":"ParentCompanyMember"}
+	},
+	{
+	"test":"AND",
+	"arg1":{"test":"Equals","dim":"Axis","name":"LegalEntityAxis"},
+	"arg2":{"test":"Equals","dim":"Member","name":"SubsidiariesMember"}
+	},
+	{
+	"test":"AND",
+	"arg1":{"test":"Equals","dim":"Axis","name":"LegalEntityAxis"},
+	"arg2":{"test":"Equals","dim":"Member","name":"GuarantorSubsidiariesMember"}
+	},
+	{
+	"test":"AND",
+	"arg1":{"test":"Equals","dim":"Axis","name":"LegalEntityAxis"},
+	"arg2":{"test":"Equals","dim":"Member","name":"NonGuarantorSubsidiariesMember"}
+	}
+]
