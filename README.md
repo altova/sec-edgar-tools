@@ -34,10 +34,10 @@ This script is designed to be used standalone or in conjunction with the EDGAR F
 The following script parameters can be additionally specified:
 
 paramerter | description
----
-suppressErrors |                  A list of DQC.US.nnnn.mmm error codes separated by | characters.
+--- | ---
+`suppressErrors` |                  A list of DQC.US.nnnn.mmm error codes separated by `|` characters.
 
-Example invocations
+###### Example invocations
 
 Validate a single filing
 
@@ -54,7 +54,7 @@ Validate a single filing using EFM and DQC rules
   raptorxmlxbrl valxbrl --script=efm_validation.py --script-param=enableDqcValidation:true instance.xml
 ```
 
-Using Altova RaptorXML+XBRL Server with XMLSpy client:
+###### Using Altova RaptorXML+XBRL Server with XMLSpy client:
 
 1.   do one of
   - Copy `efm_validation.py` and all `dqc_*` files to the Altova RaptorXML Server script directory `etc/scripts/sec-edgar-tools/` (default `C:\Program Files\Altova\RaptorXMLXBRLServer2016\etc\scripts\sec-edgar-tools\` on windows)
