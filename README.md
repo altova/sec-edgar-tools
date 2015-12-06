@@ -3,7 +3,7 @@
 This example demonstrates how the [Python v2.1 API in RaptorXML+XBRL Server](http://manual.altova.com/RaptorXML/pyapiv2/html/) can be used to perform custom validation.
 
 ##### efm_validation.py
-The script performs the extra checks specified in the EDGAR Filer Manual (Volume II) EDGAR Filing (Version 31) (http://www.sec.gov/info/edgar/edmanuals.htm) in [RaptorXML+XBRL Server](http://www.altova.com/raptorxml.html).
+The script performs the extra checks specified in the EDGAR Filer Manual (Volume II) EDGAR Filing (Version 35) (http://www.sec.gov/info/edgar/edmanuals.htm) in [RaptorXML+XBRL Server](http://www.altova.com/raptorxml.html).
 
 The `sec_*.py` scripts demonstrate how to generate reports from a SEC EDGAR filing.
 
