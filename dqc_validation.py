@@ -539,7 +539,7 @@ def dqc_0033(instance,error_log,suppress_errors,namespaces):
         legal_entity = dimension_value(fact1,dim_LegalEntityAxis)
         reporting_periods[legal_entity] = (fact1,is_valid)
 
-    for fact1 in facts_in_namespace(instance,dei_namespace,('EntityCommonStockSharesOutstanding','EntityPublicFloat','DocumentPeriodEndDate')):
+    for fact1 in facts_in_namespace(instance,dei_namespace,('EntityCommonStockSharesOutstanding','EntityPublicFloat','DocumentPeriodEndDate','EntityNumberOfEmployees','EntityListingDepositoryReceiptRatio')):
 
         reporting_period = reporting_periods.get(dimension_value(fact1,dim_LegalEntityAxis))
         if not reporting_period:
