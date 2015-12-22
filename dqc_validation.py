@@ -395,11 +395,10 @@ def dqc_0005_48(instance,error_log,suppress_errors,namespaces,reporting_period_e
 
     dim_SubsequentEventTypeAxis = instance.dts.resolve_concept(xml.QName('SubsequentEventTypeAxis',namespaces.get('us-gaap')))
     if dim_SubsequentEventTypeAxis:
-        member_SubsequentEventMember = instance.dts.resolve_concept(xml.QName('SubsequentEventMember',namespaces.get('us-gaap')))
 
         cs = xbrl.ConstraintSet()
-        cs[dim_SubsequentEventTypeAxis] = member_SubsequentEventMember
-        facts = instance.facts.filter(cs)
+        cs[dim_SubsequentEventTypeAxis] = xbrl.ExplicitDimensionAspectValue(dim_SubsequentEventTypeAxis,None)
+        facts = instance.facts - instance.facts.filter(cs)
         _dqc_0005(instance,error_log,suppress_errors,'DQC.US.0005.48',namespaces,facts,reporting_period_ends,operator.gt,{'us-gaap:SubsequentEventTypeAxis':dim_SubsequentEventTypeAxis})
 
 def dqc_0005_49(instance,error_log,suppress_errors,namespaces,reporting_period_ends):
@@ -491,7 +490,7 @@ def dqc_0009(instance,error_log,suppress_errors,namespaces):
 
 def _dqc_0015_member_exclusions_test_contains(rule,dim_aspect):
     name = dim_aspect.value.name if rule['dim'] == 'Member' else dim_aspect.dimension.name
-    return name.find(rule['text']) != -1
+    return re.search(rule['text'],name,re.IGNORECASE)
 
 def _dqc_0015_member_exclusions_test_equals(rule,dim_aspect):
     name = dim_aspect.value.name if rule['dim'] == 'Member' else dim_aspect.dimension.name
