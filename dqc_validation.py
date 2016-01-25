@@ -113,6 +113,8 @@ def period_duration(fact):
 
 def format_date(val,is_end=False):
     """Given a date or datetime object, return the date part as a string. If the is_end flag is set, the date represents the end of the day which is according to XBRL 2.1 midnight of the next day. In this case, a day is subtracted first before formatting."""
+    if val.time() != datetime.time.min:
+        return val.strftime('%Y-%m-%d %H:%M:%S')
     if is_end:
         val -= datetime.timedelta(days=1)
     return val.strftime('%Y-%m-%d')
@@ -270,7 +272,7 @@ def report_error(error_log,suppress_errors,rule_id,**kargs):
 
 def decimal_comparison(fact1,fact2,cmp):
     """Rounds both numerical facts to the least accurate precision of both facts and calls the given cmp function with the rounded decimal values."""
-    # When comparing two numeric fact values in a rule, the comparison needs to take into account different decimals. Numbers are compared based on the lowest decimal value rounded per XBRL specification. For example, the number 532,000,000 with decimals of -6 is considered to be equivalent to 532,300,000 with a decimals value of -5. In this case the 532,300,000 is rounded to a million and then compared to the value of 532,000,000. (Note that XBRL specifies “round half to nearest even” so 532,500,000 with decimals -6 rounds to 532,000,000, and 532,500,001 rounds to 533,000,000.)
+    # When comparing two numeric fact values in a rule, the comparison needs to take into account different decimals. Numbers are compared based on the lowest decimal value rounded per XBRL specification. For example, the number 532,000,000 with decimals of -6 is considered to be equivalent to 532,300,000 with a decimals value of -5. In this case the 532,300,000 is rounded to a million and then compared to the value of 532,000,000. (Note that XBRL specifies “round half to nearest even�? so 532,500,000 with decimals -6 rounds to 532,000,000, and 532,500,001 rounds to 533,000,000.)
     decimals = min(fact1.decimals,fact2.decimals)
     if decimals == float('inf'):
         return cmp(fact1.numeric_value,fact2.numeric_value)
@@ -302,10 +304,8 @@ def reporting_period_ends(instance,dei_namespace):
     dim_LegalEntityAxis = instance.dts.resolve_concept(xml.QName('LegalEntityAxis',dei_namespace))
     concept_DocumentPeriodEndDate = instance.dts.resolve_concept(xml.QName('DocumentPeriodEndDate',dei_namespace))
     for fact in instance.facts.filter(concept_DocumentPeriodEndDate):
-        # Determine the max. between the DocumentPeriodEndDate fact value and the period end date of its context
-        end_date = datetime.datetime.combine(fact.element.schema_actual_value.value,datetime.time()) + datetime.timedelta(days=1)
-        if end_date < fact.period_aspect_value.end:
-            end_date = fact.period_aspect_value.end
+        # Amendment: Use the period end date of the context and not the DocumentPeriodEndDate value! 
+        end_date = fact.period_aspect_value.end
 
         legal_entity = dimension_value(fact,dim_LegalEntityAxis)
         if legal_entity not in reporting_period_end_for_legal_entity or reporting_period_end_for_legal_entity[legal_entity][1] < end_date:
@@ -441,7 +441,7 @@ def dqc_0006(instance,error_log,suppress_errors,namespaces):
     concept_DocumentType = instance.dts.resolve_concept(xml.QName('DocumentType',namespaces['dei']))
     facts_DocumentType = instance.facts.filter(concept_DocumentType)
     if len(facts_DocumentType) != 1 or facts_DocumentType[0].normalized_value.endswith('T') or facts_DocumentType[0].normalized_value.endswith('T/A'):
-        # This rule also does not test any transition period filings, which are identified by the letter “T” in the form name.
+        # This rule also does not test any transition period filings, which are identified by the letter “T�? in the form name.
         # Transition period filings are submitted when a filer changes their fiscal year.
         # Transition period filings may cover periods which are different from the general quarter or annual length.
         return
