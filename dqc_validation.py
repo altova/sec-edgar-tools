@@ -521,7 +521,7 @@ def dqc_0015(instance,error_log,suppress_errors,namespaces):
         concept = instance.dts.resolve_concept(xml.QName(name,namespaces.get(perfix)))
         if concept:
             for fact1 in instance.facts.filter(concept,allow_nil=False):
-                if fact1.effective_numeric_value < 0 and not _dqc_0015_member_exclusions_check(fact1):
+                if fact1.numeric_value < 0 and not _dqc_0015_member_exclusions_check(fact1):
                     report_error(error_log,suppress_errors,rule_id,fact1=fact1)
 
 def dqc_0033(instance,error_log,suppress_errors,namespaces):
