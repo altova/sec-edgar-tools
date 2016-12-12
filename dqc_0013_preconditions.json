@@ -1,0 +1,19 @@
+{
+	"IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest": [
+		"IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest"
+	],
+	"IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments": [
+		"IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments",
+		"IncomeLossFromEquityMethodInvestments"
+	],
+	"IncomeLossFromContinuingOperationsBeforeIncomeTaxesDomestic": [
+		"IncomeLossFromContinuingOperationsBeforeIncomeTaxesDomestic",
+		"IncomeLossFromContinuingOperationsBeforeIncomeTaxesForeign",
+		"IncomeLossFromEquityMethodInvestments"
+	],
+	"IncomeLossFromContinuingOperationsBeforeIncomeTaxesForeign": [
+		"IncomeLossFromContinuingOperationsBeforeIncomeTaxesDomestic",
+		"IncomeLossFromContinuingOperationsBeforeIncomeTaxesForeign",
+		"IncomeLossFromEquityMethodInvestments"
+	]
+}

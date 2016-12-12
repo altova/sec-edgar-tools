@@ -1,4 +1,4 @@
-# Copyright 2015 Altova GmbH
+# Copyright 2015, 2016 Altova GmbH
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,11 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-__copyright__ = "Copyright 2015 Altova GmbH"
+__copyright__ = "Copyright 2015, 2016 Altova GmbH"
 __license__ = 'http://www.apache.org/licenses/LICENSE-2.0'
-__version__ = '1.0'
+__version__ = '2.0'
 
-# This script implements additional data quality validation rules as specified by the XBRL US Data Quality Committee (https://xbrl.us/home/data-quality/rules-guidance/).
+# This script implements additional data quality validation rules as specified by the XBRL US Data Quality Committee (http://xbrl.us/data-quality/rules-guidance/).
 # This script is designed to be used standalone or in conjunction with the EDGAR Filer Manual (EFM) rules implemented in script efm_validation.py. When using the efm_validation.py script, the DQC validation rules can be enabled with the enableDqcValidation option.
 #
 # The following script parameters can be additionally specified:
@@ -49,7 +49,7 @@ import altova_api.v2.xml as xml
 import altova_api.v2.xsd as xsd
 import altova_api.v2.xbrl as xbrl
 
-RuleInfo = collections.namedtuple('ruleInfo',['ruleVersion','releaseDate','uri'])
+RuleInfo = collections.namedtuple('ruleInfo',['ruleVersion','releaseDate','url'])
 
 re_namespaces = {
     'country':  re.compile(r'http://xbrl\.(us|sec\.gov)/country/[0-9-]{10}'),
@@ -62,6 +62,7 @@ re_namespaces = {
     'stpr':     re.compile(r'http://xbrl\.(us|sec\.gov)/stpr/[0-9-]{10}'),
     'us-gaap':  re.compile(r'http://(xbrl\.us|fasb\.org)/us-gaap/[0-9-]{10}'),
 }
+re_standard_ns = re.compile(r'http://(xbrl\.(us|sec\.gov)|fasb\.org)/')
 
 msg_template_properties = [
     'The properties of this ${fact1.name} fact are:',
@@ -72,10 +73,16 @@ msg_template_properties = [
 ]
 msg_templates = json.load(open(os.path.join(os.path.dirname(__file__),'dqc_msg_templates.json')))
 
+dqc_0001_axis_members = json.load(open(os.path.join(os.path.dirname(__file__),'dqc_0001_axis_members.json')))
 dqc_0006_period_focus_durations = json.load(open(os.path.join(os.path.dirname(__file__),'dqc_0006_period_focus_durations.json')))
 dqc_0009_facts = json.load(open(os.path.join(os.path.dirname(__file__),'dqc_0009_facts.json')))
+dqc_0013_facts = json.load(open(os.path.join(os.path.dirname(__file__),'dqc_0013_facts.json')))
+dqc_0013_preconditions = json.load(open(os.path.join(os.path.dirname(__file__),'dqc_0013_preconditions.json')))
+dqc_0014_facts = json.load(open(os.path.join(os.path.dirname(__file__),'dqc_0014_facts.json')))
 dqc_0015_facts = json.load(open(os.path.join(os.path.dirname(__file__),'dqc_0015_facts.json')))
 dqc_0015_member_exclusions = json.load(open(os.path.join(os.path.dirname(__file__),'dqc_0015_member_exclusions.json')))
+dqc_0018_concepts = json.load(open(os.path.join(os.path.dirname(__file__),'dqc_0018_concepts.json')))
+dqc_0041_default_members = json.load(open(os.path.join(os.path.dirname(__file__),'dqc_0041_default_members.json')))
 
 def prefixed_name(x):
     """Give a fact of concept returns the name formatted as [prefix:]name."""
@@ -138,12 +145,19 @@ def create_error(msg,location,severity,children,**kargs):
         param = msg[param_start:param_end]
         param_parts = param.split('.')
         param = param.replace(':','_')
+        param_values = kargs
 
-        if param_parts[0] not in kargs:
+        if param_parts[0] not in param_values:
             raise KeyError('Missing value for parameter '+param_parts[0])
 
-        if isinstance(kargs[param_parts[0]],xbrl.Fact):
-            fact = kargs[param_parts[0]]
+        if isinstance(param_values[param_parts[0]],dict):
+            param_values = param_values[param_parts[0]]
+            if param_parts[1] not in param_values:
+                raise KeyError('Missing value for parameter '+'.'.join(param_parts[:2]))
+            param_parts = param_parts[1:]
+
+        if isinstance(param_values[param_parts[0]],xbrl.Fact):
+            fact = param_values[param_parts[0]]
 
             if param_parts[1] == 'fact':
                 del param_parts[1]
@@ -221,8 +235,8 @@ def create_error(msg,location,severity,children,**kargs):
             else:
                 raise KeyError('Unknown fact property '+param_parts[1])
 
-        elif isinstance(kargs[param_parts[0]],xbrl.taxonomy.Concept):
-            concept = kargs[param_parts[0]]
+        elif isinstance(param_values[param_parts[0]],xbrl.taxonomy.Concept):
+            concept = param_values[param_parts[0]]
 
             if param_parts[1] == 'name':
                 msg_parts.append('{%s}'%param)
@@ -234,22 +248,26 @@ def create_error(msg,location,severity,children,**kargs):
                 msg_parts.append('{%s}'%param)
                 msg_params[param] = xbrl.Error.Param(label(concept),tooltip=str(concept.qname),deflocation=concept,quotes=False)
 
-        elif isinstance(kargs[param_parts[0]],RuleInfo):
-            ruleVersion = kargs[param_parts[0]]
+        elif isinstance(param_values[param_parts[0]],RuleInfo):
+            ruleVersion = param_values[param_parts[0]]
             msg_parts.append('{%s}'%param)
-            msg_params[param] = xbrl.Error.Param(ruleVersion.ruleVersion,tooltip=ruleVersion.releaseDate,quotes=False)
+            msg_params[param] = xbrl.Error.ExternalLinkParam(ruleVersion.url,title=ruleVersion.ruleVersion,tooltip=ruleVersion.releaseDate,quotes=False)
+
+        elif isinstance(param_values[param_parts[0]],xbrl.Error.Param):
+            msg_parts.append('{%s}'%param)
+            msg_params[param] = param_values[param_parts[0]]
 
         else:
             msg_parts.append('{%s}'%param)
-            msg_params[param] = xbrl.Error.Param(str(kargs[param_parts[0]]),quotes=False)
+            msg_params[param] = xbrl.Error.Param(str(param_values[param_parts[0]]),quotes=False)
 
         text_start = param_end+1
 
     return xbrl.Error.create(''.join(msg_parts), location=location, severity=severity, children=children, **msg_params )
 
-def report_error(error_log,suppress_errors,rule_id,**kargs):
+def report_error(error_log,suppress_errors,rule_id,location=None,variation=None,**kargs):
     """Constructs and reports an error given an error code and additional arguments. This function creates xbrl.Error objects according to the associated message template and adds it to the error log."""
-    if rule_id in suppress_errors:
+    if rule_id in suppress_errors or rule_id.rsplit('.',1)[0] in suppress_errors:
         return
     if rule_id in msg_templates:
         msg = msg_templates[rule_id]
@@ -257,28 +275,34 @@ def report_error(error_log,suppress_errors,rule_id,**kargs):
         # Remove test case number
         msg = msg_templates[rule_id.rsplit('.',1)[0]]
     kargs['ruleVersion'] = RuleInfo(*msg['version'])
+    if variation is not None:
+        msg = msg['variations'][variation]
 
     property_lines = []
     for line in msg_template_properties[1:]:
-        property_lines.append(create_error(line,None,xml.ErrorSeverity.OTHER,None,**kargs))
+        if 'fact1' not in line or 'fact1' in kargs:
+            property_lines.append(create_error(line,None,xml.ErrorSeverity.OTHER,None,**kargs))
 
     child_lines = []
-    if 'hint' in msg:
-        child_lines.append(create_error(msg['hint'],None,xml.ErrorSeverity.INFO,None,**kargs))
-    child_lines.append(create_error(msg_template_properties[0],None,xml.ErrorSeverity.OTHER,property_lines,**kargs))
+    hints = msg.get('hint',[])
+    if not isinstance(hints,list):
+        hints = [hints]
+    for hint in hints:
+        child_lines.append(create_error(hint,None,xml.ErrorSeverity.INFO,None,**kargs))
+    if 'fact1' in kargs:
+        location = kargs['fact1']
+        child_lines.append(create_error(msg_template_properties[0],None,xml.ErrorSeverity.OTHER,property_lines,**kargs))
 
     msg_text = '[%s] %s' % (rule_id,msg['msg'])
-    error_log.report(create_error(msg_text,kargs['fact1'],xml.ErrorSeverity.ERROR,child_lines,**kargs))
+    error_log.report(create_error(msg_text,location,xml.ErrorSeverity.ERROR,child_lines,**kargs))
 
 def decimal_comparison(fact1,fact2,cmp):
     """Rounds both numerical facts to the least accurate precision of both facts and calls the given cmp function with the rounded decimal values."""
     # When comparing two numeric fact values in a rule, the comparison needs to take into account different decimals. Numbers are compared based on the lowest decimal value rounded per XBRL specification. For example, the number 532,000,000 with decimals of -6 is considered to be equivalent to 532,300,000 with a decimals value of -5. In this case the 532,300,000 is rounded to a million and then compared to the value of 532,000,000. (Note that XBRL specifies "round half to nearest even" so 532,500,000 with decimals -6 rounds to 532,000,000, and 532,500,001 rounds to 533,000,000.)
-    decimals = min(fact1.decimals,fact2.decimals)
+    decimals = min(fact1.inferred_decimals,fact2.inferred_decimals)
     if decimals == float('inf'):
         return cmp(fact1.numeric_value,fact2.numeric_value)
-    val1 = fact1.numeric_value.scaleb(decimals).quantize(1,decimal.ROUND_HALF_EVEN).scaleb(-decimals)
-    val2 = fact2.numeric_value.scaleb(decimals).quantize(1,decimal.ROUND_HALF_EVEN).scaleb(-decimals)
-    return cmp(val1,val2,decimals)
+    return cmp(fact1.round_numeric_value(decimals),fact2.round_numeric_value(decimals),decimals)
 
 def equal_within_tolerance(val1,val2,decimals=None):
     """Returns true if va1 is equal to val2 within given tolerance."""
@@ -304,7 +328,7 @@ def reporting_period_ends(instance,dei_namespace):
     dim_LegalEntityAxis = instance.dts.resolve_concept(xml.QName('LegalEntityAxis',dei_namespace))
     concept_DocumentPeriodEndDate = instance.dts.resolve_concept(xml.QName('DocumentPeriodEndDate',dei_namespace))
     for fact in instance.facts.filter(concept_DocumentPeriodEndDate):
-        # Amendment: Use the period end date of the context and not the DocumentPeriodEndDate value! 
+        # Amendment: Use the period end date of the context and not the DocumentPeriodEndDate value!
         end_date = fact.period_aspect_value.end
 
         legal_entity = dimension_value(fact,dim_LegalEntityAxis)
@@ -342,9 +366,66 @@ def facts_in_namespace(instance,namespace,ignored):
             facts.add(fact)
     return facts
 
-def _dqc_0004(instance,error_log,suppress_errors,rule_id,concept1,concept2):
-    """DQC_0004 Element Values Are Equal"""
+def is_extension(namespace):
+    """Returns True if the given namespace is not a standard US-GAAP or SEC taxonomy namespace."""
+    return re_standard_ns.match(namespace) is None
 
+def _subtree_children_iterate(network,concept,children):
+    for rel in network.relationships_from(concept):
+        children.append(rel)
+        _subtree_children_iterate(network,rel.target,children)
+
+def _subtree_children(network,concept):
+    children = []
+    _subtree_children_iterate(network,concept,children)
+    return children
+
+def _get_dimension_values_iterate(network,concept,dims):
+    if isinstance(concept,xbrl.xdt.Dimension):
+        dims[concept] = list(_subtree_children(network,concept))
+        return
+    for rel in network.relationships_from(concept):
+        _get_dimension_values_iterate(network,rel.target,dims)
+
+def _get_dimension_values(network):
+    dims = {}
+    for root in network.roots:
+        _get_dimension_values_iterate(network,root,dims)
+    return dims
+
+def dqc_0001(instance,error_log,suppress_errors,namespaces):
+    """DQC_0001 Axis with Inappropriate Members"""
+
+    handled = set()
+    for role in instance.dts.presentation_link_roles():
+        for dim, rels in _get_dimension_values(instance.dts.presentation_network(role)).items():
+            rule = dqc_0001_axis_members.get(dim.target_namespace,{}).get(dim.name)
+            if rule:
+                for rel in rels:
+                    member = rel.target
+                    if dim.default_member == member:
+                        continue
+
+                    ext = is_extension(member.target_namespace)
+                    if ext:
+                        valid = rule['extensions'] if isinstance(rule['extensions'], bool) else member.name in rule['extensions']
+                    elif rule['disallowed']:
+                        valid = member.name not in rule['disallowed']
+                    else:
+                        valid = member.name in rule['allowed']
+                    if not valid and (dim,member) not in handled:
+                        # Mimick Arelle's behaviour of only reporting the first occurrence of each type of error
+                        handled.add((dim,member))
+                        rule_id = 'DQC.US.0001.'+rule['id'].split('.')[-1]
+                        cs = xbrl.ConstraintSet()
+                        cs[dim] = member
+                        facts = instance.facts.filter(cs)
+                        for fact in facts:
+                            report_error(error_log,suppress_errors,rule_id,rel.arc,'ext' if ext else 'std',Rule={'axis':dim,'member':member},fact1=fact)
+                        if len(facts) == 0:
+                            report_error(error_log,suppress_errors,rule_id,rel.arc,'nofact',Rule={'axis':dim,'member':member},group=xbrl.Error.Param(instance.dts.role_definition(role),tooltip=role))
+
+def _dqc_0004(instance,error_log,suppress_errors,rule_id,concept1,concept2):
     for fact1 in instance.facts.filter(concept1,allow_nil=False):
         # All comparisons between fact values occur between facts of equivalent dimensions. A rule will produce a message for each occurrence of the compared facts in equivalent dimensions.
         cs = xbrl.ConstraintSet(fact1)
@@ -367,8 +448,6 @@ def dqc_0004(instance,error_log,suppress_errors,namespaces):
     dqc_0004_16(instance,error_log,suppress_errors,namespaces)
 
 def _dqc_0005(instance,error_log,suppress_errors,rule_id,namespaces,facts,reporting_period_ends,cmp,additional_params={}):
-    """DQC_0005.17 Entity Common Stock, Shares Outstanding"""
-
     dim_LegalEntityAxis = instance.dts.resolve_concept(xml.QName('LegalEntityAxis',namespaces['dei']))
     concept_EntityCommonStockSharesOutstanding = instance.dts.resolve_concept(xml.QName('EntityCommonStockSharesOutstanding',namespaces['dei']))
     for fact1 in facts:
@@ -416,14 +495,19 @@ def dqc_0005_49(instance,error_log,suppress_errors,namespaces,reporting_period_e
 def dqc_0005(instance,error_log,suppress_errors,namespaces):
     """DQC_0005 Context Dates After Period End Date"""
 
+    concept_DocumentType = instance.dts.resolve_concept(xml.QName('DocumentType',namespaces['dei']))
+    facts_DocumentType = instance.facts.filter(concept_DocumentType)
+    if len(facts_DocumentType) != 1 or facts_DocumentType[0].normalized_value in ('S-1', 'S-3', 'S-4', 'S-6', 'S-8', 'S-11', 'S-20', 'S-1/A', 'S-3/A', 'S-4/A', 'S-6/A', 'S-8/A', 'S-11/A', 'S-20/A'):
+        # Appendix A
+        # Exclusions from the rule: S-1, S-3, S-4, S-6, S-8, S-11, S-20, S-1/A, S-3/A, S-4/A, S-6/A, S-8/A, S-11/A and S-20/A
+        return
+
     reporting_periods = reporting_period_ends(instance,namespaces['dei'])
     dqc_0005_17(instance,error_log,suppress_errors,namespaces,reporting_periods)
     dqc_0005_48(instance,error_log,suppress_errors,namespaces,reporting_periods)
     dqc_0005_49(instance,error_log,suppress_errors,namespaces,reporting_periods)
 
 def _dqc_0006(instance,error_log,suppress_errors,dim_LegalEntityAxis,period_focus_for_legal_entity,facts):
-    """DQC_0006 DEI and Block Tag Date Contexts """
-
     for fact1 in facts:
 
         period_focus = period_focus_for_legal_entity.get(dimension_value(fact1,dim_LegalEntityAxis))
@@ -488,22 +572,73 @@ def dqc_0009(instance,error_log,suppress_errors,namespaces):
                     if not decimal_comparison(fact1,fact2,less_or_equal):
                         report_error(error_log,suppress_errors,rule_id,fact1=fact1,fact2=fact2)
 
+def _dqc_0013_precondition_check(instance,namespaces,context):
+    cs = xbrl.ConstraintSet(context)
+
+    for name, summation in dqc_0013_preconditions.items():
+        cs[xbrl.Aspect.CONCEPT] = instance.dts.resolve_concept(xml.QName(name,namespaces['us-gaap']))
+        precondition_facts = instance.facts.filter(cs)
+        if precondition_facts:
+            val = 0
+            for name in summation:
+                cs[xbrl.Aspect.CONCEPT] = instance.dts.resolve_concept(xml.QName(name,namespaces['us-gaap']))
+                for fact in instance.facts.filter(cs):
+                    val += fact.numeric_value
+            if val > 0:
+                return precondition_facts[0]
+
+    return None
+
+def dqc_0013(instance,error_log,suppress_errors,namespaces):
+    """DQC_0013 Negative Values with Dependence"""
+
+    cache = {}
+    for rule_id, perfix, name in dqc_0013_facts:
+        concept = instance.dts.resolve_concept(xml.QName(name,namespaces.get(perfix)))
+        if concept:
+            for fact1 in instance.facts.filter(concept,allow_nil=False):
+                if fact1.numeric_value < 0 and not _dqc_0015_member_exclusions_check(fact1):
+                    if fact1.context in cache:
+                        precondition_fact = cache[fact1.context]
+                    else:
+                        precondition_fact = _dqc_0013_precondition_check(instance,namespaces,fact1.context)
+                        cache[fact1.context] = precondition_fact
+                    if precondition_fact:
+                        report_error(error_log,suppress_errors,rule_id,fact1=fact1,preconditionfact=precondition_fact)
+
+def has_dimensions(context):
+    try:
+        next(context.dimension_aspect_values)
+        return True
+    except StopIteration:
+        return False
+
+def dqc_0014(instance,error_log,suppress_errors,namespaces):
+    """DQC_0014 Negative Values with No Dimensions"""
+
+    for rule_id, perfix, name in dqc_0014_facts:
+        concept = instance.dts.resolve_concept(xml.QName(name,namespaces.get(perfix)))
+        if concept:
+            for fact1 in instance.facts.filter(concept,allow_nil=False):
+                if fact1.numeric_value < 0 and not has_dimensions(fact1.context):
+                    report_error(error_log,suppress_errors,rule_id,fact1=fact1)
+
 def _dqc_0015_member_exclusions_test_contains(rule,dim_aspect):
-    name = dim_aspect.value.name if rule['dim'] == 'Member' else dim_aspect.dimension.name
+    name = dim_aspect.value.name if rule['dim'] == 'member' else dim_aspect.dimension.name
     return re.search(rule['text'],name,re.IGNORECASE)
 
 def _dqc_0015_member_exclusions_test_equals(rule,dim_aspect):
-    name = dim_aspect.value.name if rule['dim'] == 'Member' else dim_aspect.dimension.name
+    name = dim_aspect.value.name if rule['dim'] == 'member' else dim_aspect.dimension.name
     return name == rule['name']
 
 def _dqc_0015_member_exclusions_test(rule,dim_aspect):
-    if rule['test'] == 'Contains the text':
+    if rule['test'] == 'contains':
         return _dqc_0015_member_exclusions_test_contains(rule,dim_aspect)
-    elif rule['test'] == 'Equals':
+    elif rule['test'] == 'equals':
         return _dqc_0015_member_exclusions_test_equals(rule,dim_aspect)
-    elif rule['test'] == 'AND':
+    elif rule['test'] == 'and':
         return _dqc_0015_member_exclusions_test(rule['arg1'],dim_aspect) and _dqc_0015_member_exclusions_test(rule['arg2'],dim_aspect)
-    elif rule['test'] == 'OR':
+    elif rule['test'] == 'or':
         return _dqc_0015_member_exclusions_test(rule['arg1'],dim_aspect) or _dqc_0015_member_exclusions_test(rule['arg2'],dim_aspect)
     raise RuntimeError('Unknown member exclusion test '+rule['test'])
 
@@ -523,6 +658,25 @@ def dqc_0015(instance,error_log,suppress_errors,namespaces):
             for fact1 in instance.facts.filter(concept,allow_nil=False):
                 if fact1.numeric_value < 0 and not _dqc_0015_member_exclusions_check(fact1):
                     report_error(error_log,suppress_errors,rule_id,fact1=fact1)
+
+def _dqc_0018(error_log,suppress_errors,us_gaap,deprecated_concepts,network,rels):
+    for rel in rels:
+        if rel.target.target_namespace == us_gaap and rel.target.name in deprecated_concepts:
+            report_error(error_log,suppress_errors,'DQC.US.0018.34',rel.arc,element=rel.target,deprecatedlabel=deprecated_concepts[rel.target.name])
+        _dqc_0018(error_log,suppress_errors,us_gaap,deprecated_concepts,network,network.relationships_from(rel.target))
+
+def dqc_0018(instance,error_log,suppress_errors,namespaces):
+    """DQC_0018 Deprecated Element is Used in the Filing"""
+
+    us_gaap = namespaces['us-gaap']
+    deprecated_concepts = dqc_0018_concepts.get(us_gaap)
+    if deprecated_concepts:
+        for role in instance.dts.presentation_link_roles():
+            network = instance.dts.presentation_network(role)
+            for root in network.roots:
+                if root.target_namespace == us_gaap and root.name in deprecated_concepts:
+                    report_error(error_log,suppress_errors,'DQC.US.0018.34',element=root,deprecatedlabel=deprecated_concepts[root.name])
+                _dqc_0018(error_log,suppress_errors,us_gaap,deprecated_concepts,network,network.relationships_from(root))
 
 def dqc_0033(instance,error_log,suppress_errors,namespaces):
     """DQC_0033 Document Period End Date Context"""
@@ -556,6 +710,17 @@ def dqc_0036(instance,error_log,suppress_errors,namespaces):
         if abs((end_date - fact1.period_aspect_value.end).days) > 3:
             report_error(error_log,suppress_errors,'DQC.US.0036.1',fact1=fact1)
 
+def dqc_0041(instance,error_log,suppress_errors,namespaces):
+    """DQC_0041 Axis with a Default Member that Differs from the US GAAP Taxonomy"""
+
+    for dim in instance.dts.dimensions:
+        default_member = dim.default_member
+        if not default_member:
+            continue
+        usgaap_default_member = dqc_0041_default_members.get(dim.target_namespace,{}).get(dim.name)
+        if usgaap_default_member and default_member.name != usgaap_default_member:
+            report_error(error_log,suppress_errors,'DQC.US.0041.73',axis=dim,axis_default=instance.dts.resolve_concept(xml.QName(usgaap_default_member,dim.target_namespace)),default=default_member)
+
 def standard_namespaces(dts):
     """Returns a dict of prefix and namespace key/value pairs for standard namespaces."""
     namespaces = {}
@@ -576,16 +741,27 @@ def parse_suppress_errors(params):
 def validate(instance,error_log,params={}):
     """Performs additional validation of xBRL instance according to DQC rules."""
     if instance:
+        error_log.report(xbrl.Error.create(
+            'Verified {DQC} with Altova RaptorXML+XBRL',
+            severity=xml.ErrorSeverity.INFO,
+            location=instance,
+            DQC=xbrl.Error.ExternalLinkParam('http://xbrl.us/data-quality/rules-guidance/',title='DQC validation rules',quotes=False)
+        ))
         suppress_errors = set(code.strip() for code in parse_suppress_errors(params))
         namespaces = standard_namespaces(instance.dts)
         if 'dei' in namespaces:
+            dqc_0001(instance,error_log,suppress_errors,namespaces)
             dqc_0004(instance,error_log,suppress_errors,namespaces)
             dqc_0005(instance,error_log,suppress_errors,namespaces)
             dqc_0006(instance,error_log,suppress_errors,namespaces)
             dqc_0009(instance,error_log,suppress_errors,namespaces)
+            dqc_0013(instance,error_log,suppress_errors,namespaces)
+            dqc_0014(instance,error_log,suppress_errors,namespaces)
             dqc_0015(instance,error_log,suppress_errors,namespaces)
+            dqc_0018(instance,error_log,suppress_errors,namespaces)
             dqc_0033(instance,error_log,suppress_errors,namespaces)
             dqc_0036(instance,error_log,suppress_errors,namespaces)
+            dqc_0041(instance,error_log,suppress_errors,namespaces)
 
 # Main script callback entry points. These functions will be called by RaptorXML after the XBRL instance validation job has finished.
 

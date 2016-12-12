@@ -1,38 +1,239 @@
 [
-	{"test":"Contains the text","dim":"Member","text":"Adjust"},
-	{"test":"Contains the text","dim":"Member","text":"Consolidat"},
-	{"test":"Contains the text","dim":"Member","text":"Eliminat"},
-	{"test":"Contains the text","dim":"Member","text":"Netting"},
-	{"test":"Contains the text","dim":"Member","text":"Reconciliat"},
-	{"test":"Contains the text","dim":"Member","text":"Reclass"},
-	{"test":"Equals","dim":"Member","name":"CorporateNonSegmentMember"},
-	{"test":"Equals","dim":"Member","name":"MaterialReconcilingItemsMember"},
-	{"test":"Equals","dim":"Member","name":"ScenarioAdjustmentMember"},
-	{"test":"Equals","dim":"Member","name":"FairValueConcentrationOfRiskMarketRiskManagementEffectsOnIncomeOrNetAssetsMember"},
-	{"test":"Equals","dim":"Member","name":"AccumulatedNetGainLossFromDesignatedOrQualifyingCashFlowHedgesMember"},
-	{"test":"Equals","dim":"Member","name":"AccumulatedNetUnrealizedInvestmentGainLossMember"},
-	{"test":"Equals","dim":"Member","name":"DeferredDerivativeGainLossMember"},
-	{"test":"Equals","dim":"Member","name":"AboveMarketLeasesMember"},
-	{"test":"Equals","dim":"Member","name":"NewAccountingPronouncementEarlyAdoptionEffectMember"},
-	{"test":"Equals","dim":"Axis","name":"StatementEquityComponentsAxis"},
-	{
-	"test":"AND",
-	"arg1":{"test":"Equals","dim":"Axis","name":"LegalEntityAxis"},
-	"arg2":{"test":"Equals","dim":"Member","name":"ParentCompanyMember"}
-	},
-	{
-	"test":"AND",
-	"arg1":{"test":"Equals","dim":"Axis","name":"LegalEntityAxis"},
-	"arg2":{"test":"Equals","dim":"Member","name":"SubsidiariesMember"}
-	},
-	{
-	"test":"AND",
-	"arg1":{"test":"Equals","dim":"Axis","name":"LegalEntityAxis"},
-	"arg2":{"test":"Equals","dim":"Member","name":"GuarantorSubsidiariesMember"}
-	},
-	{
-	"test":"AND",
-	"arg1":{"test":"Equals","dim":"Axis","name":"LegalEntityAxis"},
-	"arg2":{"test":"Equals","dim":"Member","name":"NonGuarantorSubsidiariesMember"}
-	}
+    {
+        "dim": "member",
+        "test": "contains",
+        "text": "Adjust"
+    },
+    {
+        "dim": "member",
+        "test": "contains",
+        "text": "Consolidat"
+    },
+    {
+        "dim": "member",
+        "test": "contains",
+        "text": "Eliminat"
+    },
+    {
+        "dim": "member",
+        "test": "contains",
+        "text": "Netting"
+    },
+    {
+        "dim": "member",
+        "test": "contains",
+        "text": "Reconcili"
+    },
+    {
+        "dim": "member",
+        "test": "contains",
+        "text": "Reclass"
+    },
+    {
+        "dim": "member",
+        "name": "CorporateNonSegmentMember",
+        "test": "equals"
+    },
+    {
+        "dim": "member",
+        "name": "FairValueConcentrationOfRiskMarketRiskManagementEffectsOnIncomeOrNetAssetsMember",
+        "test": "equals"
+    },
+    {
+        "dim": "member",
+        "name": "AccumulatedNetGainLossFromDesignatedOrQualifyingCashFlowHedgesMember",
+        "test": "equals"
+    },
+    {
+        "dim": "member",
+        "name": "AccumulatedNetUnrealizedInvestmentGainLossMember",
+        "test": "equals"
+    },
+    {
+        "dim": "member",
+        "name": "DeferredDerivativeGainLossMember",
+        "test": "equals"
+    },
+    {
+        "dim": "member",
+        "name": "AboveMarketLeasesMember",
+        "test": "equals"
+    },
+    {
+        "dim": "member",
+        "name": "NewAccountingPronouncementEarlyAdoptionEffectMember",
+        "test": "equals"
+    },
+    {
+        "dim": "axis",
+        "name": "StatementEquityComponentsAxis",
+        "test": "equals"
+    },
+    {
+        "arg1": {
+            "dim": "axis",
+            "name": "LegalEntityAxis",
+            "test": "equals"
+        },
+        "arg2": {
+            "dim": "member",
+            "name": "ParentCompanyMember",
+            "test": "equals"
+        },
+        "test": "and"
+    },
+    {
+        "arg1": {
+            "dim": "axis",
+            "name": "LegalEntityAxis",
+            "test": "equals"
+        },
+        "arg2": {
+            "dim": "member",
+            "name": "SubsidiariesMember",
+            "test": "equals"
+        },
+        "test": "and"
+    },
+    {
+        "arg1": {
+            "dim": "axis",
+            "name": "LegalEntityAxis",
+            "test": "equals"
+        },
+        "arg2": {
+            "dim": "member",
+            "name": "GuarantorSubsidiariesMember",
+            "test": "equals"
+        },
+        "test": "and"
+    },
+    {
+        "arg1": {
+            "dim": "axis",
+            "name": "LegalEntityAxis",
+            "test": "equals"
+        },
+        "arg2": {
+            "dim": "member",
+            "name": "NonGuarantorSubsidiariesMember",
+            "test": "equals"
+        },
+        "test": "and"
+    },
+    {
+        "arg1": {
+            "dim": "axis",
+            "name": "LegalEntityAxis",
+            "test": "equals"
+        },
+        "arg2": {
+            "dim": "member",
+            "name": "SubsidiaryIssuerMember",
+            "test": "equals"
+        },
+        "test": "and"
+    },
+    {
+        "dim": "axis",
+        "name": "ErrorCorrectionsAndPriorPeriodAdjustmentsRestatementByRestatementPeriodAndAmountAxis",
+        "test": "equals"
+    },
+    {
+        "dim": "axis",
+        "name": "AdjustmentsForChangeInAccountingPrincipleAxis",
+        "test": "equals"
+    },
+    {
+        "dim": "axis",
+        "name": "AdjustmentsForNewAccountingPronouncementsAxis",
+        "test": "equals"
+    },
+    {
+        "dim": "axis",
+        "name": "ProspectiveAdoptionOfNewAccountingPronouncementsAxis",
+        "test": "equals"
+    },
+    {
+        "dim": "axis",
+        "name": "QuantifyingMisstatementInCurrentYearFinancialStatementsByNatureOfErrorAxis",
+        "test": "equals"
+    },
+    {
+        "dim": "axis",
+        "name": "PartnerCapitalComponentsAxis",
+        "test": "equals"
+    },
+    {
+        "dim": "axis",
+        "name": "ChangeInAccountingEstimateByTypeAxis",
+        "test": "equals"
+    },
+    {
+        "dim": "axis",
+        "name": "PartnerTypeOfPartnersCapitalAccountAxis",
+        "test": "equals"
+    },
+    {
+        "arg1": {
+            "dim": "axis",
+            "name": "FairValueByMeasurementBasisAxis",
+            "test": "equals"
+        },
+        "arg2": {
+            "dim": "member",
+            "name": "ChangeDuringPeriodFairValueDisclosureMember",
+            "test": "equals"
+        },
+        "test": "and"
+    },
+    {
+        "arg1": {
+            "dim": "axis",
+            "name": "StatementBusinessSegmentsAxis",
+            "test": "equals"
+        },
+        "arg2": {
+            "dim": "member",
+            "name": "CorporateAndOtherMember",
+            "test": "equals"
+        },
+        "test": "and"
+    },
+    {
+        "arg1": {
+            "dim": "axis",
+            "name": "StatementBusinessSegmentsAxis",
+            "test": "equals"
+        },
+        "arg2": {
+            "dim": "member",
+            "name": "CorporateMember",
+            "test": "equals"
+        },
+        "test": "and"
+    },
+    {
+        "arg1": {
+            "dim": "axis",
+            "name": "StatementBusinessSegmentsAxis",
+            "test": "equals"
+        },
+        "arg2": {
+            "dim": "member",
+            "name": "AllOtherSegmentsMember",
+            "test": "equals"
+        },
+        "test": "and"
+    },
+    {
+        "dim": "member",
+        "name": "UnallocatedFinancingReceivablesMember",
+        "test": "equals"
+    },
+    {
+        "dim": "axis",
+        "name": "StatementBusinessSegmentsAxis",
+        "test": "equals"
+    }
 ]

@@ -1,4 +1,21 @@
 {
+	"DQC.US.0001": {
+		"version": ["1.0","Public Exposure August 31, 2016","http://xbrl.us/data-rule/dqc_0001/"],
+		"variations": {
+			"ext": {
+				"msg": "The extension member, ${Rule.member.label} is used on the axis ${Rule.axis.label} with the element ${fact1.label} with a value of ${fact1.value}.",
+				"hint": "Extension members should not be used with the ${Rule.axis.label}."
+			},
+			"std": {
+				"msg": "The member, ${Rule.member.label} is used on the axis ${Rule.axis.label} with the element ${fact1.label} with a value of ${fact1.value}.",
+				"hint": "This member should not be used with the ${Rule.axis.label}."
+			},
+			"nofact": {
+				"msg": "The member, ${Rule.member.label}, is used on the axis, ${Rule.axis.label} in the disclosure group ${group}.",
+				"hint": "There are no facts associated with this member and axis. Extension members should not be used with the ${Rule.axis.label}."
+			}
+		}
+	},
 	"DQC.US.0004": {
 		"version": ["1.0","November 19, 2015","http://xbrl.us/data-rule/dqc_0004/"],
 		"msg": "${fact1.label} with a value of ${fact1.value} is not equal to the total of ${fact2.label} with a value of ${fact2.value}.",
@@ -57,8 +74,18 @@
 		"msg": "The value of ${fact1.label}, ${fact1.value}, should be less than or equal to ${fact2.label}, ${fact2.value}.",
 		"hint": "${fact1.label} must be less than or equal to ${fact2.label}, as it does not include assumptions about future compensation levels."
 	},	
+	"DQC.US.0013": {
+		"version": ["1.0","Public Exposure August 31, 2016","http://xbrl.us/data-rule/dqc_0013/"],
+		"msg": "${fact1.label} has a value of ${fact1.value} which is less than zero.",
+		"hint": "This element should not have a negative value when the value for the element ${preconditionfact.label} is greater than zero."
+	},
+	"DQC.US.0014": {
+		"version": ["1.0","Public Exposure August 31, 2016","http://xbrl.us/data-rule/dqc_0014/"],
+		"msg": "${fact1.label} has a value of ${fact1.value} which is less than zero.",
+		"hint": "This element should not have a negative value."
+	},
 	"DQC.US.0015": {
-		"version": ["1.0","November 19, 2015","http://xbrl.us/data-rule/dqc_0015/"],
+		"version": ["2.0","Public Exposure August 31, 2016","http://xbrl.us/data-rule/dqc_0015-v2/"],
 		"msg": "${fact1.label} has a value of ${fact1.value} which is less than zero.",
 		"hint": "This element should not have a negative value."
 	},
@@ -157,6 +184,11 @@
 		"msg": "${fact1.label} has a value of ${fact1.value} which is less than zero.",
 		"hint": "This element represents the increase in the value of real estate during the period, and not the cash payments made for real estate improvements. This element should not be used for payments for capital improvements."
 	},
+	"DQC.US.0018": {
+		"version": ["1.0","Public Exposure August 31, 2016","http://xbrl.us/data-rule/dqc_0018/"],
+		"msg": "${element.label} is a deprecated item, but has been included in the company's presentation tree.",
+		"hint": ["Deprecated items should not be used in the filing. Guidance on the replacement item to use for this item is provided in the Deprecated Label of the ${element.name} concept.","${deprecatedlabel}"]
+	},
 	"DQC.US.0033": {
 		"version": ["1.0","November 19, 2015","http://xbrl.us/data-rule/dqc_0033/"],
 		"msg": "The ending date of ${fact1.period.endDate} used for ${fact1.label} must be the same as the ${dei:DocumentPeriodEndDate.fact.label}, ${dei:DocumentPeriodEndDate.fact.period.endDate}.",
@@ -166,5 +198,10 @@
 		"version": ["1.0","November 19, 2015","http://xbrl.us/data-rule/dqc_0036/"],
 		"msg": "The ending date of ${fact1.period.endDate} used for ${fact1.label} must match the value reported for the element, ${fact1.value}.",
 		"hint": "Revise either the ending context date or the value of the ${fact1.label}."
+	},
+	"DQC.US.0041": {
+		"version": ["1.0","Public Exposure August 31, 2016","http://xbrl.us/data-rule/dqc_0041/"],
+		"msg": "The default for the ${axis.name} in the base taxonomy is ${axis_default.name}, but the default has been replaced with ${default.name}.",
+		"hint": "The dimension default defined for the axis in the US GAAP taxonomy should not be changed in a company extension taxonomy."
 	}
 }

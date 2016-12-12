@@ -1,17 +1,17 @@
-# Copyright 2015 Altova GmbH
-#
+﻿# Copyright 2015, 2016 Altova GmbH
+# 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-#
+# 
 #     http://www.apache.org/licenses/LICENSE-2.0
-#
+# 
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-__copyright__ = "Copyright 2015 Altova GmbH"
+__copyright__ = "Copyright 2015, 2016 Altova GmbH"
 __license__ = 'http://www.apache.org/licenses/LICENSE-2.0'
 
 # This script generates Excel reports from a SEC EDGAR filing.
@@ -64,12 +64,12 @@ def isNegated(role):
         'http://xbrl.us/us-gaap/role/label/negatedTotal',
         'http://www.xbrl.org/2009/role/negatedTotalLabel'
     )
-
+    
 def domainMembersFromPresentationTreeRecursive(network,parent,domain_members):
     for rel in network.relationships_from(parent):
         domain_members.append(rel.target)
         domainMembersFromPresentationTreeRecursive(network,rel.target,domain_members)
-
+        
 def conceptsFromPresentationTreeRecursive(network,parent,concepts):
     for rel in network.relationships_from(parent):
         if not rel.target.abstract:
@@ -83,7 +83,7 @@ def analyzePresentationTree(network,roots):
         if isinstance(rel.target,xbrl.xdt.Hypercube):
             for rel2 in network.relationships_from(rel.target):
                 if isinstance(rel2.target,xbrl.xdt.Dimension):
-                    domainMembersFromPresentationTreeRecursive(network,rel2.target,dimensions.setdefault(rel2.target,[]))
+                    domainMembersFromPresentationTreeRecursive(network,rel2.target,dimensions.setdefault(rel2.target,[]))       
                 else:
                     conceptsFromPresentationTreeRecursive(network,rel2.target,concepts)
         else:
@@ -94,7 +94,7 @@ def calcTableData(instance,role,contexts,concepts,dimensions):
     table = {'columns': [], 'height': len(concepts)}
 
     bIsCashFlow = 'cash' in role[1].lower() and 'flow' in role[1].lower()
-
+    
     for context in contexts:
         cs = xbrl.ConstraintSet(context)
         period = cs[xbrl.Aspect.PERIOD]
@@ -108,11 +108,11 @@ def calcTableData(instance,role,contexts,concepts,dimensions):
             if dim.default_member and dim.default_member not in dimensions[dim]:
                 bEliminate = True
         if bEliminate:
-            continue
-
+            continue        
+        
         bEmpty = True
         bHasCash = False
-        column = {'period': period, 'dimensions': dimension_aspects, 'rows': []}
+        column = {'period': period, 'dimensions': dimension_aspects, 'rows': []}        
         for concept in concepts:
             cs[xbrl.Aspect.CONCEPT] = concept[0]
             if isPeriodStart(concept[1]):
@@ -129,7 +129,7 @@ def calcTableData(instance,role,contexts,concepts,dimensions):
                     continue
             else:
                 cs[xbrl.Aspect.PERIOD] = period
-
+            
             facts = instance.facts.filter(cs,allow_additional_dimensions=False)
             if len(facts):
                 bEmpty = False
@@ -139,7 +139,7 @@ def calcTableData(instance,role,contexts,concepts,dimensions):
 
         if not bEmpty and (not bIsCashFlow or bHasCash):
             table['columns'].append(column)
-
+    
     return table
 
 def formatConcept(concept):
@@ -160,7 +160,7 @@ def formatPeriod(period):
 
 def formatDimensionValue(dimValue):
     return formatConcept((dimValue.value,'http://www.xbrl.org/2003/role/terseLabel'))
-
+    
 def formatFact(dts,fact,preferredLabel=None):
     if fact.xsi_nil:
         return ('#N/A',None)
@@ -184,7 +184,7 @@ def formatFact(dts,fact,preferredLabel=None):
         return (str(fact.qname_value),None)
     else:
         return (fact.normalized_value,None)
-
+        
 def getDuration(column):
     p = column['period']
     if p.period_type == xbrl.PeriodType.INSTANT:
@@ -196,16 +196,16 @@ def getEndDate(column):
     if p.period_type == xbrl.PeriodType.INSTANT:
         return p.instant
     return p.end
-
+    
 def generateTable(workbook, dts, role, table):
     columns = sorted(table['columns'],key=lambda x: (-getDuration(x),getEndDate(x)),reverse=True)
-
+    
     worksheet = workbook.add_worksheet(role[1].split(' - ')[0])
 
     worksheet.set_column(0,0,70)
     worksheet.set_column(1,1+len(table['columns']),20)
     worksheet.write(0,0,role[1].split(' - ')[2],formats['caption'])
-
+    
     col = 1
     row_start = 1
     for duration, group in itertools.groupby(columns,key=getDuration):
@@ -226,7 +226,7 @@ def generateTable(workbook, dts, role, table):
                     worksheet.write(row+1+i,col,dimLabel)
             col += 1
             row_start = max(row_start,row+2+len(column['dimensions']))
-
+    
     for row in range(table['height']):
         concept = columns[0]['rows'][row]['concept']
         worksheet.write(row_start+row,0,formatConcept(concept),formats['header'])
@@ -235,7 +235,7 @@ def generateTable(workbook, dts, role, table):
                 worksheet.write(row_start+row,1+col,*formatFact(dts,fact,concept[1]))
                 footnotes = [footnote.text for footnote in fact.footnotes(lang=lang)]
                 if footnotes:
-                    worksheet.write_comment(row_start+row,1+col,'\n'.join(footnotes),{'x_scale':5,'y_scale':2})
+                    worksheet.write_comment(row_start+row,1+col,'\n'.join(footnotes),{'x_scale':5,'y_scale':2}) 
 
 def generateTables(path, dts, instance):
     global formats
@@ -258,7 +258,7 @@ def generateTables(path, dts, instance):
         presentation_network = dts.presentation_base_set(role[0]).network_of_relationships()
         roots = list(presentation_network.roots)
         tables[role] = calcTableData(instance,role,contexts,*analyzePresentationTree(presentation_network,roots))
-
+    
     # Generate excel sheet for each non-empty table
     for role in roles:
         if tables[role]['columns']:

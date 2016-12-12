@@ -1,17 +1,17 @@
-# Copyright 2015 Altova GmbH
-#
+﻿# Copyright 2015, 2016 Altova GmbH
+# 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-#
+# 
 #     http://www.apache.org/licenses/LICENSE-2.0
-#
+# 
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-__copyright__ = "Copyright 2015 Altova GmbH"
+__copyright__ = "Copyright 2015, 2016 Altova GmbH"
 __license__ = 'http://www.apache.org/licenses/LICENSE-2.0'
 
 # This script generates HTML reports from a SEC EDGAR filing.
@@ -55,12 +55,12 @@ def isNegated(role):
         'http://xbrl.us/us-gaap/role/label/negatedTotal',
         'http://www.xbrl.org/2009/role/negatedTotalLabel'
     )
-
+    
 def domainMembersFromPresentationTreeRecursive(network,parent,domain_members):
     for rel in network.relationships_from(parent):
         domain_members.append(rel.target)
         domainMembersFromPresentationTreeRecursive(network,rel.target,domain_members)
-
+        
 def conceptsFromPresentationTreeRecursive(network,parent,concepts):
     for rel in network.relationships_from(parent):
         if not rel.target.abstract:
@@ -74,7 +74,7 @@ def analyzePresentationTree(network,roots):
         if isinstance(rel.target,xbrl.xdt.Hypercube):
             for rel2 in network.relationships_from(rel.target):
                 if isinstance(rel2.target,xbrl.xdt.Dimension):
-                    domainMembersFromPresentationTreeRecursive(network,rel2.target,dimensions.setdefault(rel2.target,[]))
+                    domainMembersFromPresentationTreeRecursive(network,rel2.target,dimensions.setdefault(rel2.target,[]))       
                 else:
                     conceptsFromPresentationTreeRecursive(network,rel2.target,concepts)
         else:
@@ -85,7 +85,7 @@ def calcTableData(instance,role,contexts,concepts,dimensions):
     table = {'columns': [], 'height': len(concepts)}
 
     bIsCashFlow = 'cash' in role[1].lower() and 'flow' in role[1].lower()
-
+    
     for context in contexts:
         cs = xbrl.ConstraintSet(context)
         period = cs[xbrl.Aspect.PERIOD]
@@ -99,11 +99,11 @@ def calcTableData(instance,role,contexts,concepts,dimensions):
             if dim.default_member and dim.default_member not in dimensions[dim]:
                 bEliminate = True
         if bEliminate:
-            continue
-
+            continue        
+        
         bEmpty = True
         bHasCash = False
-        column = {'period': period, 'dimensions': dimension_aspects, 'rows': []}
+        column = {'period': period, 'dimensions': dimension_aspects, 'rows': []}        
         for concept in concepts:
             cs[xbrl.Aspect.CONCEPT] = concept[0]
             if isPeriodStart(concept[1]):
@@ -120,7 +120,7 @@ def calcTableData(instance,role,contexts,concepts,dimensions):
                     continue
             else:
                 cs[xbrl.Aspect.PERIOD] = period
-
+            
             facts = instance.facts.filter(cs,allow_additional_dimensions=False)
             if len(facts):
                 bEmpty = False
@@ -130,7 +130,7 @@ def calcTableData(instance,role,contexts,concepts,dimensions):
 
         if not bEmpty and (not bIsCashFlow or bHasCash):
             table['columns'].append(column)
-
+    
     return table
 
 def formatConcept(concept):
@@ -153,10 +153,10 @@ def formatUnit(unit):
     if denominator:
         return numerator+'/'+denominator
     return numerator
-
+    
 def formatDimensionValue(dimValue):
     return formatConcept((dimValue.value,'http://www.xbrl.org/2003/role/terseLabel'))
-
+    
 def formatFact(fact,preferredLabel):
     if fact.xsi_nil:
         return 'nil'
@@ -174,7 +174,7 @@ def formatFact(fact,preferredLabel):
 
 def formatDate(date):
     return date.strftime('%b. %d, %Y')
-
+    
 def getDuration(column):
     p = column['period']
     if p.period_type == xbrl.PeriodType.INSTANT:
@@ -186,10 +186,10 @@ def getEndDate(column):
     if p.period_type == xbrl.PeriodType.INSTANT:
         return p.instant
     return p.end
-
+    
 def generateTable(file, role, table):
     columns = sorted(table['columns'],key=lambda x: (-getDuration(x),getEndDate(x)),reverse=True)
-
+    
     file.write('<hr/>\n')
     file.write('<a name="table_%s"/>\n' % role[1].split(' - ')[0])
     file.write('<table>\n')
@@ -197,14 +197,14 @@ def generateTable(file, role, table):
     file.write('<caption>')
     file.write(role[1])
     file.write('</caption>\n')
-
+    
     file.write('<thead>\n')
 
     bHasDurations = False
     for duration, group in itertools.groupby(columns,key=getDuration):
         if duration > 0:
-            bHasDurations = True
-
+            bHasDurations = True        
+    
     file.write('<tr>\n')
     file.write('<th rowspan="%d"></th>\n' % (2 if bHasDurations else 1))
     if bHasDurations:
@@ -214,7 +214,7 @@ def generateTable(file, role, table):
             if duration > 0:
                 file.write('<p class="label">%d Months Ended</p>\n' % getDuration(cols[0]))
             file.write('</th>\n')
-        file.write('</tr>\n')
+        file.write('</tr>\n')   
         file.write('<tr>\n')
     for column in columns:
         file.write('<th>\n')
@@ -244,12 +244,12 @@ def generateTable(file, role, table):
             file.write('</td>\n')
         file.write('</tr>\n')
     file.write('</tbody>\n')
-
+    
     file.write('</table>\n')
-
+    
     for (footnote,index) in sorted(footnotes.items(),key=lambda footnote: footnote[1]):
         file.write('<a name="table_%s_footnote_%d"><p class="footnote">[%d] %s</p></a>\n' % (role[1].split(' - ')[0],index,index,footnote.text))
-
+    
 def generateTables(file, dts, instance):
     file.write("""<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>
@@ -259,15 +259,15 @@ def generateTables(file, dts, instance):
 <style type="text/css">
 .error { color: red }
 .footnoteRef { font-size: 70%; vertical-align: top;}
-table { border-collapse:collapse; border: 0.22em solid black; background-color: white; color: black;}
+table { border-collapse:collapse; border: 0.22em solid black; background-color: white; color: black;} 
 caption {font-size: 150%}
-td, th { border-left: 0.1em solid black; border-left: 0.1em solid black; border-top: 0.1em solid black; padding: 0.5em; text-align: center; }
-thead tr th.rollup { border-top-style: none; }
-tbody tr th.rollup { border-left-style: none; }
-tbody tr:nth-of-type(even) { background-color: #EAEFFF; }
-thead, tbody tr th { background-color: #C6D8FF; }
-thead { border-bottom: 0.19em solid black; }
-thead tr:first-of-type th:first-of-type, tbody tr th:last-of-type { border-right: 0.18em solid black; }
+td, th { border-left: 0.1em solid black; border-left: 0.1em solid black; border-top: 0.1em solid black; padding: 0.5em; text-align: center; } 
+thead tr th.rollup { border-top-style: none; } 
+tbody tr th.rollup { border-left-style: none; } 
+tbody tr:nth-of-type(even) { background-color: #EAEFFF; } 
+thead, tbody tr th { background-color: #C6D8FF; } 
+thead { border-bottom: 0.19em solid black; } 
+thead tr:first-of-type th:first-of-type, tbody tr th:last-of-type { border-right: 0.18em solid black; } 
 </style>
 </head>
 <body>
@@ -286,7 +286,7 @@ thead tr:first-of-type th:first-of-type, tbody tr th:last-of-type { border-right
     # Generate table index
     for role in roles:
         if tables[role]['columns']:
-            file.write('<h4><a href="#table_%s">%s</a></h4>\n' % (role[1].split(' - ')[0], role[1]))
+            file.write('<h4><a href="#table_%s">%s</a></h4>\n' % (role[1].split(' - ')[0], role[1]))    
 
     # Generate html rendering of each non-empty table
     for role in roles:

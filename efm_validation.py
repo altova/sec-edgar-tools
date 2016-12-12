@@ -1,4 +1,4 @@
-# Copyright 2015 Altova GmbH
+﻿# Copyright 2015, 2016 Altova GmbH
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,11 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-__copyright__ = "Copyright 2015 Altova GmbH"
+__copyright__ = "Copyright 2015, 2016 Altova GmbH"
 __license__ = 'http://www.apache.org/licenses/LICENSE-2.0'
-__version__ = '35'
+__version__ = '39'
 
-# This script implements additional validation rules specified in the EDGAR Filer Manual (Volume II) EDGAR Filing (Version 35) (http://www.sec.gov/info/edgar/edmanuals.htm)
+# This script implements additional validation rules specified in the EDGAR Filer Manual (Volume II) EDGAR Filing (Version 39) (http://www.sec.gov/info/edgar/edmanuals.htm)
 #
 # The following script parameters can be additionally specified:
 #
@@ -232,10 +232,13 @@ numeric_roles = {
 
 xml_namespace = 'http://www.w3.org/XML/1998/namespace'
 xsi_namespace = 'http://www.w3.org/2001/XMLSchema-instance'
+xs_namespace = 'http://www.w3.org/2001/XMLSchema'
 link_namespace = 'http://www.xbrl.org/2003/linkbase'
 xlink_namespace = 'http://www.w3.org/1999/xlink'
 xbrli_namespace = 'http://www.xbrl.org/2003/instance'
 xbrldt_namespace = 'http://xbrl.org/2005/xbrldt'
+xhtml_namespace = 'http://www.w3.org/1999/xhtml'
+ix_namespace = 'http://www.xbrl.org/2013/inlineXBRL'
 
 qname_item = xml.QName('item',xbrli_namespace,'xbrli')
 qname_hypercubeItem = xml.QName('hypercubeItem',xbrldt_namespace,'xbrldt')
@@ -245,6 +248,15 @@ qname_referenceLink = xml.QName('referenceLink',link_namespace,'link')
 qname_presentationLink = xml.QName('presentationLink',link_namespace,'link')
 qname_calculationLink = xml.QName('calculationLink',link_namespace,'link')
 qname_definitionLink = xml.QName('definitionLink',link_namespace,'link')
+
+qname_xs_anyURI = xml.QName('anyURI', xs_namespace, 'xs')
+qname_xs_base64Binary = xml.QName('base64Binary', xs_namespace, 'xs')
+qname_xs_hexBinary = xml.QName('hexBinary', xs_namespace, 'xs')
+qname_xs_NOTATION = xml.QName('NOTATION', xs_namespace, 'xs')
+qname_xs_QName = xml.QName('QName', xs_namespace, 'xs')
+qname_xs_time = xml.QName('time', xs_namespace, 'xs')
+qname_xs_token = xml.QName('token', xs_namespace, 'xs')
+qname_xs_language = xml.QName('language', xs_namespace, 'xs')
 
 midnight = datetime.time(0, 0, 0, 0)
 hours24 = datetime.timedelta(hours=24)
@@ -265,12 +277,14 @@ re_dei = re.compile('http://xbrl.us/dei/|http://xbrl.sec.gov/dei/')
 re_gaap = re.compile('http://[^/]+/us-gaap/[0-9-]+')
 re_definition = re.compile('[0-9]+ - (Statement|Disclosure|Schedule|Document) -.*[^\s]')
 re_html_stag = re.compile('<[:A-z_a-z][:A-z_a-z.0-9-]*(\s+.*)?/?>')
-re_html_href = re.compile('(http://www.sec.gov/Archives/edgar/data/.+)|(#.+)|([^/.:]+)')
+re_html_href = re.compile('((http://)?www.sec.gov/Archives/edgar/data/.+)|(#.+)|([^/.:]+)')
 re_html_src = re.compile('([^/.:]+)\.(jpg|gif)')
 re_period_start_or_end = re.compile('[pP]eriod(Start|End)')
+re_display_none = re.compile('(.*;)?\s*display\s*:\s*none\s*(;.*)?')
 
-def is_extension_document(instance, doc):
-    return instance.uri.rsplit('/',1)[0] == doc.uri.rsplit('/',1)[0]
+
+def is_extension_document(instance_uri, doc):
+    return instance_uri.rsplit('/',1)[0] == doc.uri.rsplit('/',1)[0]
 
 def check_xml_base(elem, error_log):
     for attr in elem.attributes:
@@ -487,7 +501,7 @@ def v_equals(fact,fact2):
         return decimal_comparison(fact,fact2,lambda x,y,d=None:x==y)
     return fact.normalized_value == fact2.normalized_value
 
-def validate_facts(instance,error_log,catalog,domainItemTypes,textBlockItemTypes,edbody_dtd):
+def validate_facts(instance,error_log,catalog,domainItemTypes,textBlockItemTypes,edbody_dtd,is_ixbrl):
     unique_facts = {}
     contextrefs = set()
     used_concepts = {}
@@ -506,7 +520,7 @@ def validate_facts(instance,error_log,catalog,domainItemTypes,textBlockItemTypes
             
             # 6.5.15 If the un-escaped content of a fact with base type us-types:textBlockItemType or a type equal to or derived by restriction of the type 'escapedItemType' in a standard taxonomy schema namespace contains the '<' character followed by a QName and whitespace, '/>' or '>', then the un-escaped content must contain only a sequence of text and XML nodes.
             # 6.5.16 Facts of type 'text block' whose un-escaped content contains markup must satisfy the content model of the BODY tag as defined in 5.2.2.
-            if not fact.xsi_nil and fact.concept.type_definition in textBlockItemTypes:
+            if not is_ixbrl and not fact.xsi_nil and fact.concept.type_definition in textBlockItemTypes:
                 if re_html_stag.search(fact.normalized_value):
                     html = ''.join(('<body>',fact.normalized_value,'</body>'))
                     (xsi,log) = xml.Instance.create_from_buffer(html.encode(),dtd=edbody_dtd,catalog=catalog)
@@ -692,10 +706,10 @@ def validate_units(instance, error_log):
             if len(measure.value.local_name.encode('utf-8')) > 200:
                 error_log.report(xbrl.Error.create('[EFM.6.5.36] The local name part {name:value} in {measure} of unit {unit} must not exceed 200 bytes in UTF-8.', location='name:value', name=xbrl.Error.Param(measure.value.local_name,location=measure), measure=measure, unit=unit))
     
-def validate_labels(instance, error_log):
+def validate_labels(instance_uri, dts, error_log):
     label_to_concept = {}
-    for label_role in instance.dts.label_link_roles():
-        net = instance.dts.label_base_set(label_role).network_of_relationships()
+    for label_role in dts.label_link_roles():
+        net = dts.label_base_set(label_role).network_of_relationships()
         for rel in net.relationships:
             concept = rel.source
             label = rel.target
@@ -704,21 +718,21 @@ def validate_labels(instance, error_log):
                 concept2 = label_to_concept.setdefault(label.text,concept)
                 if concept != concept2:
                     # Avoid cluttering of error log when two versions of the same standard taxonomy have been imported
-                    if is_extension_document(instance,concept.document) or is_extension_document(instance,label_to_concept[label.text].document):
+                    if is_extension_document(instance_uri,concept.document) or is_extension_document(instance_uri,label_to_concept[label.text].document):
                         error_log.report(xbrl.Error.create('[EFM.6.10.4] Concepts {concept} and {concept2} must not have the same English standard label text {label:value}.', location=concept, concept=concept, concept2=concept2, label=xbrl.Error.Param(label.text,location=label.element)))
                         
             # 6.10.9 Non-numeric elements must not have labels whose xlink:role value implies they apply to numeric values.
             if label.xlink_role in numeric_roles and isinstance(concept,xbrl.taxonomy.Item) and concept.is_non_numeric():
                 error_log.report(xbrl.Error.create('[EFM.6.10.9] Non-numeric concept {concept} must not be linked to a label resource with numeric role {role:value}.', location=concept, concept=concept, role=xbrl.Error.Param(label.xlink_role,location=label.element.find_attribute(('role',xlink_namespace)))))
     
-    #for concept in instance.dts.items:
+    #for concept in dts.items:
     #   # 6.10.4 The DTS of an instance must have no distinct elements having the same English standard label (xml:lang attribute equal to 'en-US').
     #   for label in concept.labels(label_role='http://www.xbrl.org/2003/role/label',lang='en-US'):
     #       if label.xml_lang == 'en-US':
     #           concept2 = label_to_concept.setdefault(label.text,concept)
     #           if concept != concept2:
     #               # Avoid cluttering of error log when two versions of the same standard taxonomy have been imported
-    #               if is_extension_document(instance,concept.document) or is_extension_document(instance,label_to_concept[label.text].document):
+    #               if is_extension_document(instance_uri,concept.document) or is_extension_document(instance_uri,label_to_concept[label.text].document):
     #                   error_log.report(xbrl.Error.create('[EFM.6.10.4] Concepts {concept} and {concept2} must not have the same English standard label text {label:value}.', location=concept, concept=concept, concept2=concept2, label=xbrl.Error.Param(label.text,location=label.element)))
     #
     #   # 6.10.9 Non-numeric elements must not have labels whose xlink:role value implies they apply to numeric values.
@@ -727,16 +741,16 @@ def validate_labels(instance, error_log):
     #           if label.xlink_role in numeric_roles:
     #               error_log.report(xbrl.Error.create('[EFM.6.10.9] Non-numeric concept {concept} must not be linked to a label resource with numeric role {role:value}.', location=concept, concept=concept, role=xbrl.Error.Param(label.xlink_role,location=label.element.find_attribute(('role',xlink_namespace)))))
                 
-def validate(uri, instance, error_log, params={}, catalog=xml.Catalog.root_catalog()):
+def validate(instance_uri, instance, error_log, params={}, catalog=xml.Catalog.root_catalog()):
 
     # instance object will be None if XBRL 2.1 validation was not successful
     if instance is None:
         # 6.4.3 The XBRL instance documents in a submission must be XBRL 2.1 valid.
         xbrl_errors = list(error_log.errors)
         error_log.clear()
-        error_log.report(xbrl.Error.create('[EFM.6.4.3] Instance {uri} is not a valid XBRL 2.1 document.', location=uri, children=xbrl_errors, uri=uri))
+        error_log.report(xbrl.Error.create('[EFM.6.4.3] Instance {uri} is not a valid XBRL 2.1 document.', location=instance_uri, children=xbrl_errors, uri=instance_uri))
         return
-
+        
     CIK = params.get('CIK')
     submissionType = params.get('submissionType')
     
@@ -790,12 +804,13 @@ def validate(uri, instance, error_log, params={}, catalog=xml.Catalog.root_catal
         error_log.report(xbrl.Error.create('Instance {xbrl} does not appear to be a SEC filing.', xbrl=instance.document_element))
         return
         
-    # 5.2.1.1 Valid ASCII Characters
-    check_valid_ascii(instance.uri, catalog, error_log)
+    if not instance_uri.endswith('.htm'):
+        # 5.2.1.1 Valid ASCII Characters
+        check_valid_ascii(instance.uri, catalog, error_log)
     
-    # 6.3.3 XBRL document names must match {base}-{date}[_{suffix}].{extension}.
-    if not re_xml_uri.fullmatch(instance.uri):
-        error_log.report(xbrl.Error.create('[EFM.6.3.3] Instance filename {uri} does not match {pattern}.', location='uri', uri=xbrl.Error.Param(instance.uri.rsplit('/',1)[1],tooltip=instance.uri,location=instance.uri), pattern='{base}-{date}.xml'))
+        # 6.3.3 XBRL document names must match {base}-{date}[_{suffix}].{extension}.
+        if not re_xml_uri.fullmatch(instance_uri):
+            error_log.report(xbrl.Error.create('[EFM.6.3.3] Instance filename {uri} does not match {pattern}.', location='uri', uri=xbrl.Error.Param(instance_uri.rsplit('/',1)[1],tooltip=instance_uri,location=instance_uri), pattern='{base}-{date}.xml'))
     
     # 6.3.6 The URI content of the xlink:href attribute, the xsi:schemaLocation attribute and the schemaLocation attribute must be relative and contain no forward slashes, or a recognized external location of a standard taxonomy schema file, or a '#' followed by a shorthand xpointer.
     for schema_location in instance.schema_location_attributes:
@@ -848,8 +863,8 @@ def validate(uri, instance, error_log, params={}, catalog=xml.Catalog.root_catal
             continue
 
         # 6.22 Supported Versions of XBRL Standard Taxonomies
-        if not is_extension_document(instance,doc):
-            hint = xbrl.Error.create('Hint: See {uri} for more information.', uri='http://www.sec.gov/info/edgar/edgartaxonomies.shtml')
+        if not is_extension_document(instance_uri,doc):
+            hint = xbrl.Error.create('Hint: See {uri} for more information.', uri=xbrl.Error.ExternalLinkParam('http://www.sec.gov/info/edgar/edgartaxonomies.shtml'))
             error_log.report(xbrl.Error.create('[EFM.6.22.2] Document {uri} is not a supported XBRL Standard Taxonomy for EDGAR version {version}.', location='uri', uri=doc.uri, children=[hint], version=edgar_version))
             continue
             
@@ -1116,7 +1131,7 @@ def validate(uri, instance, error_log, params={}, catalog=xml.Catalog.root_catal
     
     edbody_dtd = parse_edbody_dtd(uri_edbody_dtd,catalog,error_log)
     
-    contextrefs, used_concepts = validate_facts(instance,error_log,catalog,domainItemTypes,textBlockItemTypes,edbody_dtd)
+    contextrefs, used_concepts = validate_facts(instance,error_log,catalog,domainItemTypes,textBlockItemTypes,edbody_dtd,instance_uri.endswith('.htm'))
 
     for link in instance.footnote_links:
         to_labels = set()
@@ -1147,13 +1162,15 @@ def validate(uri, instance, error_log, params={}, catalog=xml.Catalog.root_catal
                         error_log.report(xbrl.Error.create('[EFM.6.5.28] Role {role:value} on footnote {footnote} must be defined in the XBRL 2.1 specification.', location='role:value', role=role_attr, footnote=elem))
 
                     # 6.5.34 The content of a link:footnote element must satisfy the content model of the BODY tag as defined in 5.2.2.
-                    html = ''.join(('<body>',elem.serialize(omit_start_tag=True),'</body>'))
-                    (xsi,log) = xml.Instance.create_from_buffer(html.encode(),dtd=edbody_dtd,catalog=catalog)
-                    errors = list(log.errors)
-                    if xsi:
-                        check_valid_html(xsi.document_element, catalog, instance.uri, errors)
-                    if errors:
-                        error_log.report(xbrl.Error.create('[EFM.6.5.34] The content of footnote {footnote} must satisfy the content model of the HTML BODY tag.', footnote=elem, children=errors))
+                    if not instance_uri.endswith('.htm'):
+                        contents = elem.serialize(omit_start_tag=True)
+                        html = ''.join(('<body>',contents,'</body>')) if contents else '<body/>'
+                        (xsi,log) = xml.Instance.create_from_buffer(html.encode(),dtd=edbody_dtd,catalog=catalog)
+                        errors = list(log.errors)
+                        if xsi:
+                            check_valid_html(xsi.document_element, catalog, instance_uri, errors)
+                        if errors:
+                            error_log.report(xbrl.Error.create('[EFM.6.5.34] The content of footnote {footnote} must satisfy the content model of the HTML BODY tag.', footnote=elem, children=errors))
                         
                 elif elem.local_name == 'footnoteArc':
                     to_labels.add(elem.find_attribute(('to',xlink_namespace)).normalized_value)
@@ -1301,7 +1318,7 @@ def validate(uri, instance, error_log, params={}, catalog=xml.Catalog.root_catal
             error_log.report(xbrl.Error.create('[EFM.6.16.7] Axis {axis} of negative table {table} must appear in a positive table.', location=rel.arc, table=rel.target, axis=rel2.target))
                     
     for doc in instance.dts.documents:
-        if not is_extension_document(instance,doc):
+        if not is_extension_document(instance_uri,doc):
             continue
     
         # 6.3.6 The URI content of the xlink:href attribute, the xsi:schemaLocation attribute and the schemaLocation attribute must be relative and contain no forward slashes, or a recognized external location of a standard taxonomy schema file, or a '#' followed by a shorthand xpointer.
@@ -1551,7 +1568,7 @@ def validate(uri, instance, error_log, params={}, catalog=xml.Catalog.root_catal
             else:
                 source_to_relationship[(rel.source,rel.preferred_label)] = rel
                                 
-    validate_labels(instance,error_log)
+    validate_labels(instance_uri,instance.dts,error_log)
     
     if params.get('enableDqcValidation', 'false') == 'true':
         dqc_validation.validate(instance,error_log,params)
@@ -1559,7 +1576,6 @@ def validate(uri, instance, error_log, params={}, catalog=xml.Catalog.root_catal
 # Main entry point, will be called by RaptorXML after the DTS discovery from XBRL instance has finished
 def on_xbrl_finished_dts(job, dts):
     if dts is not None:
-
         # 6.5.35 If element 'UTR' in a standard namespace is declared in the DTS of an instance, then the value of each 'unitRef' attribute on each fact of a type in that registry must refer to a unit declaration consistent with the data type of that fact, where consistency is defined by that registry.
         if job.script_params.get('forceUtrValidation', 'false') == 'true':
             bEnableUTR = True
@@ -1579,3 +1595,302 @@ def on_xbrl_finished_dts(job, dts):
 # Main entry point, will be called by RaptorXML after the XBRL instance validation job has finished
 def on_xbrl_finished(job, instance):
     validate(job.input_filenames[0], instance, job.error_log, job.script_params, job.catalog)
+
+
+# 5.2.5 Inline XBRL Documents
+    
+allowed_inlinexbrl_html_tags = set([
+    'a',
+    'address',
+    'b',
+    'big',
+    'blockquote',
+    'body',
+    'br',
+    'caption',
+    'center',
+    'code',
+    'dfn',
+    'i',
+    'div',
+    'dl',
+    'dt',
+    'em',
+    'h1',
+    'h2',
+    'h3',
+    'h4',
+    'h5',
+    'h6',
+    'head',
+    'hr',
+    'html',
+    'i',
+    'img',
+    'kbd',
+    'li',
+    'meta',
+    'ol',
+    'p',
+    'pre',
+    'samp',
+    'small',
+    'span',
+    'strong',
+    'sub',
+    'sup',
+    'table',
+    'tbody',
+    'td',
+    'tfoot',
+    'th',
+    'thead',
+    'title',
+    'tr',
+    'tt',
+    'ul',
+    'var'
+])
+allowed_inlinexbrl_html_attributes = set([
+    xml.QName('align'),
+    xml.QName('alt'),
+    xml.QName('border'),
+    xml.QName('cellpadding'),
+    xml.QName('cellspacing'),
+    xml.QName('class'),
+    xml.QName('colspan'),
+    xml.QName('content'),
+    xml.QName('dir'),
+    xml.QName('height'),
+    xml.QName('href'),
+    xml.QName('http-equiv'),
+    xml.QName('id'),
+    xml.QName('longdesc'),  # Used in the efm testsuite but not mentioned in the actual EDGAR filer manual!
+    xml.QName('name'),
+    xml.QName('rel'),
+    xml.QName('rev'),
+    xml.QName('rowspan'),
+    xml.QName('src'),
+    xml.QName('style'),
+    xml.QName('title'),
+    xml.QName('valign'),
+    xml.QName('version'),
+    xml.QName('width'),
+    xml.QName('lang',xml_namespace),
+    xml.QName('schemaLocation',xsi_namespace)
+])
+
+# returns the value of the -sec-ix-hidden property, or None if absent.
+def get_sec_ix_hidden(value):
+    for part in value.split(';'):
+        key_value = part.split( ':' )
+        if len(key_value) == 2:
+            if key_value[0].strip() == "-sec-ix-hidden":
+                return key_value[1].strip()
+    return None
+
+
+def check_valid_ixbrl(elem, catalog, error_log, ix_hidden_data, table=None):
+    if elem.find_attribute(xml.QName('schemaLocation',xsi_namespace)):
+        # 5.2.5.13 Other Inline XBRL restrictions
+        # Attribute xsi:schemaLocation should not be used on an Inline XBRL document.
+        error_log.report(xbrl.Error.create('[EFM.5.2.5.13] Attribute {schemaLocation} should not be used.', severity=xml.ErrorSeverity.WARNING, schemaLocation=elem.find_attribute(xml.QName('schemaLocation',xsi_namespace))))
+
+    if elem.namespace_name == ix_namespace:
+        if elem.local_name in ('tuple','fraction'):
+            # 5.2.5.11 Inline XBRL 1.1 features that are not supported by EDGAR 
+            # The ix:tuple element is not allowed.
+            # The ix:fraction element is not allowed.
+            error_log.report(xbrl.Error.create('[EFM.5.2.5.11] Inline XBRL element {elem} is not allowed.', elem=elem))
+        
+        elif elem.local_name == 'header':
+            style = elem.parent.find_attribute('style')
+            if elem.parent.qname != xml.QName('div', xhtml_namespace) or style is None or not re_display_none.fullmatch(style.normalized_value):
+                # 5.2.5.13 Other Inline XBRL restrictions
+                # Element ix:heading should appear as the child of a <div> element with style attribute display:none.
+                error_log.report(xbrl.Error.create('[EFM.5.2.5.13] Inline XBRL element {elem} must be a child of a <div> element with style attribute display:none.', severity=xml.ErrorSeverity.WARNING, elem=elem))
+
+        id = None
+        for attr in elem.attributes:
+            if attr.qname == xml.QName('format'):
+                if attr.schema_actual_value is not None and attr.schema_actual_value.namespace_name not in ('http://www.xbrl.org/inlineXBRL/transformation/2015-02-26','http://xbrl.sec.gov/inlineXBRL/transformation/2015-08-31','http://www.sec.gov/inlineXBRL/transformation/2015-08-31'):
+                    # 5.2.5.12 Inline XBRL Transformation Registries supported by EDGAR
+                    error_log.report(xbrl.Error.create('[EFM.5.2.5.12] Inline XBRL Transformation Registry {url} is not supported.', location='attr:value', attr=attr, url=attr.schema_actual_value.namespace_name))
+            elif attr.qname in (xml.QName('target'), xml.QName('base',xml_namespace)):
+                # 5.2.5.11 Inline XBRL 1.1 features that are not supported by EDGAR 
+                # The target attribute is not allowed on any Inline XBRL element.
+                # The xml:base attribute is not allowed on any Inline XBRL element.
+                error_log.report(xbrl.Error.create('[EFM.5.2.5.11] Attribute {attr} is not allowed on any Inline XBRL elements.', attr=attr))
+            elif attr.qname == xml.QName('id'):
+                id = attr.normalized_value
+        
+        if elem.local_name in ('fraction', 'nonFraction', 'nonNumeric') and elem.parent.namespace_name == ix_namespace and elem.parent.local_name == 'hidden':
+            ix_hidden_data["facts"].setdefault(id,[]).append(elem)
+            
+                
+    elif elem.namespace_name == xhtml_namespace:
+        if elem.local_name not in allowed_inlinexbrl_html_tags:
+            # 5.2.5.6 HTML tags that are not allowed in Inline XBRL Documents
+            error_log.report(xbrl.Error.create('[EFM.5.2.5.6] HTML element {elem} is not allowed in Inline XBRL documents', elem=elem))
+    
+        for attr in elem.attributes:
+            if attr.specified and attr.qname not in allowed_inlinexbrl_html_attributes:
+                # 5.2.5.9 HTML attributes allowed in Inline XBRL Documents
+                error_log.report(xbrl.Error.create('[EFM.5.2.5.9] HTML attribute {attr} is not allowed in Inline XBRL documents', attr=attr))
+            if attr.local_name == "style" and attr.namespace_name == "":
+                sec_ix_hidden_id = get_sec_ix_hidden(attr.normalized_value)
+                if sec_ix_hidden_id is not None:
+                    ix_hidden_data["refs"][elem] = sec_ix_hidden_id
+    
+        if elem.local_name == 'a':
+            href = elem.find_attribute('href')
+            if href:
+                if not re_html_href.fullmatch(href.normalized_value):
+                    # 5.2.5.10 HTML attribute values that are not allowed in Inline XBRL Documents
+                    # Attribute href (on the <a> tag) may only reference other HTML, ASCII and Inline XBRL documents that are local or are located on the SEC web site as attachments to previously accepted submissions. This precludes active content such as javascript from appearing in the href attribute.
+                    error_log.report(xbrl.Error.create('[EFM.5.2.5.10] Reference to {href:value} is not allowed in attribute {href} in element {a}.', location='href:value', href=href, a=elem))
+            else:
+                parent = elem.parent
+                while isinstance(parent, xml.ElementInformationItem):
+                    if parent.namespace_name == xhtml_namespace and parent.local_name not in ('html', 'body', 'div'):
+                        # 5.2.5.8 Restrictions on HTML bookmark positions
+                        error_log.report(xbrl.Error.create('[EFM.5.2.5.8] HTML bookmark {elem} must not have ancestor {parent}.', severity=xml.ErrorSeverity.WARNING, location=elem, elem=elem, parent=parent))
+                        break
+                    parent = parent.parent
+                
+        elif elem.local_name == 'img':
+            src = elem.find_attribute('src')
+            if src and not re_html_src.fullmatch(src.normalized_value):
+                # 5.2.5.10 HTML attribute values that are not allowed in Inline XBRL Documents
+                # Attribute src on the <img> tag may only locally reference jpeg and gif graphics.
+                error_log.report(xbrl.Error.create('[EFM.5.2.5.10] Reference to {src:value} is not allowed in attribute {src} in element {img}.', location='src:value', src=src, img=elem))
+            else:
+                try:
+                    imageuri = urljoin(elem.base_uri,src.normalized_value)
+                    if imghdr.what(imageuri,altova.open(imageuri,catalog=catalog,mode='rb').read()) not in ('gif','jpeg'):
+                        # 5.2.5.10 HTML attribute values that are not allowed in Inline XBRL Documents
+                        # Attribute src on the <img> tag may only locally reference jpeg and gif graphics.
+                        error_log.report(xbrl.Error.create('[EFM.5.2.5.10] Image {src:value} referenced in attribute {src} in element {img} is not a valid GIF or JPEG image.', location='src:value', src=src, img=elem))
+                except OSError:
+                    # 5.2.5.10 HTML attribute values that are not allowed in Inline XBRL Documents
+                    # Attribute src on the <img> tag may only locally reference jpeg and gif graphics.
+                    error_log.report(xbrl.Error.create('[EFM.5.2.5.10] Image {src:value} referenced in attribute {src} in element {img} cannot be opened.', location='src:value', src=src, img=elem))
+        elif elem.local_name == 'table':
+            if table is not None:
+                # 5.2.5.7 Nested HTML table elements are not allowed
+                error_log.report(xbrl.Error.create('[EFM.5.2.5.7] Element {table} cannot be nested with another table element {table2}.', location='table', table=elem, table2=table))
+            else:
+                table = elem
+                
+    elif elem.namespace_name == link_namespace:
+        if elem.local_name == "schemaRef":
+            href_attr = elem.find_attribute(xml.QName("href", xlink_namespace))
+            if href_attr is not None:
+                ix_hidden_data[ "schemaRef" ] = urljoin(elem.base_uri, href_attr.normalized_value)
+
+    for child in elem.element_children():
+        check_valid_ixbrl(child, catalog, error_log, ix_hidden_data, table)
+    
+
+# The XML Schema primitive types not eligible for transformation are anyURI, base64Binary, hexBinary, NOTATION, QName, and time. 
+# XML derived types token and language are not eligible for transformation. All other primitive and derived types are eligible for transformation.
+def is_eligible_for_transformation(ix_fact, dts):
+    name_attr = ix_fact.find_attribute('name')
+    if name_attr is not None and isinstance(name_attr.schema_actual_value, xsd.QName):
+        concept = dts.resolve_concept(xml.QName(name_attr.schema_actual_value.local_part, name_attr.schema_actual_value.namespace_name))
+        return ( isinstance( concept, xbrl.taxonomy.Item )
+            and not concept.is_derived_from( qname_xs_anyURI ) 
+            and not concept.is_derived_from( qname_xs_base64Binary ) 
+            and not concept.is_derived_from( qname_xs_hexBinary ) 
+            and not concept.is_derived_from( qname_xs_NOTATION ) 
+            and not concept.is_derived_from( qname_xs_QName ) 
+            and not concept.is_derived_from( qname_xs_time ) 
+            and not concept.is_derived_from( qname_xs_token ) 
+            and not concept.is_derived_from( qname_xs_language ) )
+    return False
+    
+def is_ix_dei_fact(ix_fact):
+    name_attr = ix_fact.find_attribute('name')
+    if name_attr is not None and isinstance(name_attr.schema_actual_value, xsd.QName):
+        return re_dei.match(name_attr.schema_actual_value.namespace_name)
+    return False
+    
+def is_ix_nil(ix_fact):
+    nil_attr = ix_fact.find_attribute(xml.QName('nil', xsi_namespace))
+    return nil_attr is not None and bool(nil_attr.schema_actual_value)
+   
+def check_efm_5_2_5_14(dts, error_log, ix_hidden_data):
+    id_to_ref = {}
+    for ref, id in ix_hidden_data["refs"].items():
+        # 5.2.5.14 The value of an -sec-ix-hidden style property must resolve to the @id of a fact in ix:hidden.
+        if not id in ix_hidden_data["facts"]:
+            error_log.report(xbrl.Error.create("[EFM.5.2.5.14] Value {value} of -sec-ix-hidden property doesn't resolve to a hidden fact.", location='attr:value', value=id, attr=ref))
+        else:
+            # The @id of a fact in ix:hidden should not appear as the value of more than one -sec-ix-hidden style property.        
+            if id in id_to_ref:
+                for fact in ix_hidden_data["facts"][id]:
+                    error_log.report(xbrl.Error.create("[EFM.5.2.5.14] Id {id} of hidden fact {fact} is referenced from {ref1} and {ref2}.", severity=xml.ErrorSeverity.WARNING, location='ref2', id=id, fact=fact, ref1=id_to_ref[id], ref2=ref))
+            else:
+                id_to_ref[ id ] = ref
+    
+    for id, hidden_facts in ix_hidden_data["facts"].items():
+        for fact in hidden_facts:
+            # Facts in ix:hidden whose @name attributes resolve to an element in the "dei" namespace are "dei facts" that may always 
+            # appear in ix:hidden and may (but need not) be displayed using -sec-ix-hidden.
+            if not is_ix_dei_fact(fact):
+                if is_ix_nil(fact):
+                    # Facts in ix:hidden that are not dei facts, with an @xsi:nil attribute of "true", should be displayed using -sec-ix-hidden. 
+                    # (Note that the inline xbrl transformation “ixt:nocontent" produces an non-nil fact, which differs from a nil fact).
+                    if id not in id_to_ref:
+                        error_log.report(xbrl.Error.create("[EFM.5.2.5.14] Hidden nil-fact {fact} should be displayed using -sec-ix-hidden.", severity=xml.ErrorSeverity.WARNING, location='fact', fact=fact))
+                elif is_eligible_for_transformation(fact, dts):
+                    # Facts with a @name attribute that resolves to an element whose XML value space is a subset of available transformation 
+                    # outputs are "eligible for transformation". A non-dei fact eligible for transformation should not be in ix:hidden.
+                    error_log.report(xbrl.Error.create("[EFM.5.2.5.14] Non dei-fact {fact} is eligible for transformation and should therefore not be in ix:hidden.", severity=xml.ErrorSeverity.WARNING, location='fact', fact=fact))
+                else:
+                    # Facts in ix:hidden that are not dei facts, not having @xsi:nil value "true" and not eligible for transformation should be 
+                    # displayed using -sec-ix-hidden. 
+                    if id not in id_to_ref:
+                        error_log.report(xbrl.Error.create("[EFM.5.2.5.14] Hidden non-nil fact {fact} is not eligible for transformation and should therefore be displayed using -sec-ix-hidden.", severity=xml.ErrorSeverity.WARNING, location='fact', fact=fact))
+                    
+    
+def validate_ixbrl(instance, error_log, catalog=xml.Catalog.root_catalog()):
+    if instance is None:
+        return
+
+    # 5.2.5.1 The <DOCTYPE> declaration not supported
+    if instance.dtd is not None:
+        error_log.report(xbrl.Error.create('[EFM.5.2.5.1] Inline XBRL document {uri} must not contain a <DOCTYPE> declaration.', uri=instance.uri))
+      
+    # 5.2.5.3 Element <head> content
+    head = instance.document_element.find_child_element(('head',xhtml_namespace))
+    if head:
+        bHasMeta = False
+        for child in head.element_children():
+            if child.local_name == 'meta' and child.namespace_name == xhtml_namespace:
+                http_equiv = child.find_attribute('http-equiv')
+                if http_equiv and http_equiv.normalized_value == 'Content-Type':
+                    content = child.find_attribute('content')
+                    if content and (content.normalized_value == 'text/html' or content.normalized_value.startswith('text/html;')):
+                        bHasMeta = True
+                        break
+        if not bHasMeta:
+            error_log.report(xbrl.Error.create('[EFM.5.2.5.3] Element {head} must contain a <meta http-equiv="Content-Type" content="text/html"> child element.', head=head))
+    
+    ix_hidden_data = {"facts": {}, "refs": {}, "schemaRef": None}
+    check_valid_ixbrl(instance.document_element, catalog, error_log, ix_hidden_data)
+    if ix_hidden_data["schemaRef"] is not None:
+        # no xbrl instance/dts in on_ixbrl_finished, so it must be loaded here.
+        dts, xbrl_error_log = xbrl.taxonomy.DTS.create_from_url(ix_hidden_data["schemaRef"], catalog=catalog)
+        if dts is not None:
+            check_efm_5_2_5_14(dts, error_log, ix_hidden_data) # check hidden element restrictions (ix:hidden), DTS needed
+   
+# Main entry point, will be called by RaptorXML after the Inline XBRL transformation is finished
+def on_ixbrl_finished(job, document_set, target_documents):
+    # 5.2.5.2 Inline XBRL validation
+    if len(document_set) == 1:
+        validate_ixbrl(document_set[0], job.error_log, job.catalog)
+    else:
+        # 5.2.5.11 Inline XBRL 1.1 features that are not supported by EDGAR 
+        # Inline XBRL Document Sets as defined by section 3.1 of the Inline XBRL 1.1 Specification can contain only one input document.
+        error_log.report(xbrl.Error.create('[EFM.5.2.5.11] Inline XBRL Document Set must contain only one input document.'))
