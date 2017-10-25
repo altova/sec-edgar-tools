@@ -11,9 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-__copyright__ = "Copyright 2015, 2016 Altova GmbH"
+__copyright__ = "Copyright 2015-2017 Altova GmbH"
 __license__ = 'http://www.apache.org/licenses/LICENSE-2.0'
-__version__ = '2.0'
+__version__ = '4.0.0'
 
 # This script implements additional data quality validation rules as specified by the XBRL US Data Quality Committee (http://xbrl.us/data-quality/rules-guidance/).
 # This script is designed to be used standalone or in conjunction with the EDGAR Filer Manual (EFM) rules implemented in script efm_validation.py. When using the efm_validation.py script, the DQC validation rules can be enabled with the enableDqcValidation option.
@@ -75,7 +75,9 @@ msg_templates = json.load(open(os.path.join(os.path.dirname(__file__),'dqc_msg_t
 
 dqc_0001_axis_members = json.load(open(os.path.join(os.path.dirname(__file__),'dqc_0001_axis_members.json')))
 dqc_0006_period_focus_durations = json.load(open(os.path.join(os.path.dirname(__file__),'dqc_0006_period_focus_durations.json')))
+dqc_0008_calculations = json.load(open(os.path.join(os.path.dirname(__file__),'dqc_0008_calculations.json')))
 dqc_0009_facts = json.load(open(os.path.join(os.path.dirname(__file__),'dqc_0009_facts.json')))
+dqc_0011_facts = json.load(open(os.path.join(os.path.dirname(__file__),'dqc_0011_facts.json')))
 dqc_0013_facts = json.load(open(os.path.join(os.path.dirname(__file__),'dqc_0013_facts.json')))
 dqc_0013_preconditions = json.load(open(os.path.join(os.path.dirname(__file__),'dqc_0013_preconditions.json')))
 dqc_0014_facts = json.load(open(os.path.join(os.path.dirname(__file__),'dqc_0014_facts.json')))
@@ -83,6 +85,8 @@ dqc_0015_facts = json.load(open(os.path.join(os.path.dirname(__file__),'dqc_0015
 dqc_0015_member_exclusions = json.load(open(os.path.join(os.path.dirname(__file__),'dqc_0015_member_exclusions.json')))
 dqc_0018_concepts = json.load(open(os.path.join(os.path.dirname(__file__),'dqc_0018_concepts.json')))
 dqc_0041_default_members = json.load(open(os.path.join(os.path.dirname(__file__),'dqc_0041_default_members.json')))
+
+arcrole_summation_item = 'http://www.xbrl.org/2003/arcrole/summation-item'
 
 def prefixed_name(x):
     """Give a fact of concept returns the name formatted as [prefix:]name."""
@@ -146,7 +150,7 @@ def create_error(msg,location,severity,children,**kargs):
         param_parts = param.split('.')
         param = param.replace(':','_')
         param_values = kargs
-
+        
         if param_parts[0] not in param_values:
             raise KeyError('Missing value for parameter '+param_parts[0])
 
@@ -256,7 +260,7 @@ def create_error(msg,location,severity,children,**kargs):
         elif isinstance(param_values[param_parts[0]],xbrl.Error.Param):
             msg_parts.append('{%s}'%param)
             msg_params[param] = param_values[param_parts[0]]
-
+            
         else:
             msg_parts.append('{%s}'%param)
             msg_params[param] = xbrl.Error.Param(str(param_values[param_parts[0]]),quotes=False)
@@ -328,7 +332,7 @@ def reporting_period_ends(instance,dei_namespace):
     dim_LegalEntityAxis = instance.dts.resolve_concept(xml.QName('LegalEntityAxis',dei_namespace))
     concept_DocumentPeriodEndDate = instance.dts.resolve_concept(xml.QName('DocumentPeriodEndDate',dei_namespace))
     for fact in instance.facts.filter(concept_DocumentPeriodEndDate):
-        # Amendment: Use the period end date of the context and not the DocumentPeriodEndDate value!
+        # Amendment: Use the period end date of the context and not the DocumentPeriodEndDate value! 
         end_date = fact.period_aspect_value.end
 
         legal_entity = dimension_value(fact,dim_LegalEntityAxis)
@@ -374,7 +378,7 @@ def _subtree_children_iterate(network,concept,children):
     for rel in network.relationships_from(concept):
         children.append(rel)
         _subtree_children_iterate(network,rel.target,children)
-
+    
 def _subtree_children(network,concept):
     children = []
     _subtree_children_iterate(network,concept,children)
@@ -424,7 +428,7 @@ def dqc_0001(instance,error_log,suppress_errors,namespaces):
                             report_error(error_log,suppress_errors,rule_id,rel.arc,'ext' if ext else 'std',Rule={'axis':dim,'member':member},fact1=fact)
                         if len(facts) == 0:
                             report_error(error_log,suppress_errors,rule_id,rel.arc,'nofact',Rule={'axis':dim,'member':member},group=xbrl.Error.Param(instance.dts.role_definition(role),tooltip=role))
-
+    
 def _dqc_0004(instance,error_log,suppress_errors,rule_id,concept1,concept2):
     for fact1 in instance.facts.filter(concept1,allow_nil=False):
         # All comparisons between fact values occur between facts of equivalent dimensions. A rule will produce a message for each occurrence of the compared facts in equivalent dimensions.
@@ -501,7 +505,7 @@ def dqc_0005(instance,error_log,suppress_errors,namespaces):
         # Appendix A
         # Exclusions from the rule: S-1, S-3, S-4, S-6, S-8, S-11, S-20, S-1/A, S-3/A, S-4/A, S-6/A, S-8/A, S-11/A and S-20/A
         return
-
+    
     reporting_periods = reporting_period_ends(instance,namespaces['dei'])
     dqc_0005_17(instance,error_log,suppress_errors,namespaces,reporting_periods)
     dqc_0005_48(instance,error_log,suppress_errors,namespaces,reporting_periods)
@@ -556,6 +560,21 @@ def dqc_0006(instance,error_log,suppress_errors,namespaces):
             _dqc_0006(instance,error_log,suppress_errors,dim_LegalEntityAxis,period_focus_for_legal_entity,instance.facts.filter(concept))
 
     _dqc_0006(instance,error_log,suppress_errors,dim_LegalEntityAxis,period_focus_for_legal_entity,textblock_facts(instance))
+    
+    
+def dqc_0008(instance,error_log,suppress_errors,namespaces):
+    """DQC_0008 Reversed Calculation"""
+    dts = instance.dts
+    ns = namespaces.get('us-gaap')
+    us_gaap_calc = dqc_0008_calculations.get(ns)
+    if us_gaap_calc:
+        for linkrole in dts.calculation_link_roles(arcrole_summation_item):
+            nw = dts.calculation_network(linkrole, arcrole_summation_item)
+            for rel in nw.relationships:
+                us_gaap_items = us_gaap_calc.get(rel.target_concept.name, [])
+                if rel.source_concept.name in us_gaap_items:
+                    report_error(error_log,suppress_errors,'DQC.US.0008.6819',extCalcTarget=rel.target_concept,extCalcSource=rel.source_concept)
+    
 
 def dqc_0009(instance,error_log,suppress_errors,namespaces):
     """DQC_0009 Element A must be less than or equal to Element B"""
@@ -572,9 +591,40 @@ def dqc_0009(instance,error_log,suppress_errors,namespaces):
                     if not decimal_comparison(fact1,fact2,less_or_equal):
                         report_error(error_log,suppress_errors,rule_id,fact1=fact1,fact2=fact2)
 
+
+def dqc_0011(instance,error_log,suppress_errors,namespaces):
+    """DQC_0011 Dimensional Equivalents """
+
+    for rule_id, lineItemPrefix, lineItemName, dimItemPrefix, dimItemName, axisPrefix, axisName, memberPrefix, memberName, weight in dqc_0011_facts:
+        lineConcept = instance.dts.resolve_concept(xml.QName(lineItemName, namespaces.get(lineItemPrefix)))
+        dimConcept = instance.dts.resolve_concept(xml.QName(dimItemName,namespaces.get(dimItemPrefix)))
+        axisConcept = instance.dts.resolve_concept(xml.QName(axisName,namespaces.get(axisPrefix)))
+        memberConcept = instance.dts.resolve_concept(xml.QName(memberName,namespaces.get(memberPrefix)))
+        # select all facts with name lineItemName and no value for explicit dimension axisName
+        lineItemConstraintSet = xbrl.ConstraintSet()
+        lineItemConstraintSet.add(xbrl.ConceptAspectValue(lineConcept))
+        lineItemConstraintSet.add(xbrl.ExplicitDimensionAspectValue(axisConcept))
+        lineFacts = instance.facts.filter(lineItemConstraintSet)
+        for lineFact in lineFacts:
+            if not isinstance(lineFact, xbrl.Item) or lineFact.xsi_nil:
+                continue
+            # select all facts with name dimItemName and explicit dimension axisName=memberName and all other aspect values equal to their respective value of lineFact
+            dimItemConstraintSet = lineFact.aspect_values
+            dimItemConstraintSet.add(xbrl.ConceptAspectValue(dimConcept))
+            dimItemConstraintSet.add(xbrl.ExplicitDimensionAspectValue(axisConcept, memberConcept))
+            dimFacts = instance.facts.filter(dimItemConstraintSet)
+            lineValue = lineFact.effective_numeric_value
+            for dimFact in dimFacts:
+                if not isinstance(dimFact, xbrl.Item) or dimFact.xsi_nil:
+                    continue
+                dimValue = dimFact.effective_numeric_value
+                if dimValue * weight != lineValue:
+                    report_error(error_log,suppress_errors,rule_id,fact1=lineFact,fact2=dimFact,weight=weight)
+
+        
 def _dqc_0013_precondition_check(instance,namespaces,context):
     cs = xbrl.ConstraintSet(context)
-
+    
     for name, summation in dqc_0013_preconditions.items():
         cs[xbrl.Aspect.CONCEPT] = instance.dts.resolve_concept(xml.QName(name,namespaces['us-gaap']))
         precondition_facts = instance.facts.filter(cs)
@@ -586,7 +636,7 @@ def _dqc_0013_precondition_check(instance,namespaces,context):
                     val += fact.numeric_value
             if val > 0:
                 return precondition_facts[0]
-
+    
     return None
 
 def dqc_0013(instance,error_log,suppress_errors,namespaces):
@@ -615,13 +665,13 @@ def has_dimensions(context):
 
 def dqc_0014(instance,error_log,suppress_errors,namespaces):
     """DQC_0014 Negative Values with No Dimensions"""
-
+    
     for rule_id, perfix, name in dqc_0014_facts:
         concept = instance.dts.resolve_concept(xml.QName(name,namespaces.get(perfix)))
         if concept:
             for fact1 in instance.facts.filter(concept,allow_nil=False):
                 if fact1.numeric_value < 0 and not has_dimensions(fact1.context):
-                    report_error(error_log,suppress_errors,rule_id,fact1=fact1)
+                    report_error(error_log,suppress_errors,rule_id,fact1=fact1) 
 
 def _dqc_0015_member_exclusions_test_contains(rule,dim_aspect):
     name = dim_aspect.value.name if rule['dim'] == 'member' else dim_aspect.dimension.name
@@ -677,7 +727,7 @@ def dqc_0018(instance,error_log,suppress_errors,namespaces):
                 if root.target_namespace == us_gaap and root.name in deprecated_concepts:
                     report_error(error_log,suppress_errors,'DQC.US.0018.34',element=root,deprecatedlabel=deprecated_concepts[root.name])
                 _dqc_0018(error_log,suppress_errors,us_gaap,deprecated_concepts,network,network.relationships_from(root))
-
+                    
 def dqc_0033(instance,error_log,suppress_errors,namespaces):
     """DQC_0033 Document Period End Date Context"""
 
@@ -714,12 +764,13 @@ def dqc_0041(instance,error_log,suppress_errors,namespaces):
     """DQC_0041 Axis with a Default Member that Differs from the US GAAP Taxonomy"""
 
     for dim in instance.dts.dimensions:
-        default_member = dim.default_member
-        if not default_member:
-            continue
-        usgaap_default_member = dqc_0041_default_members.get(dim.target_namespace,{}).get(dim.name)
-        if usgaap_default_member and default_member.name != usgaap_default_member:
-            report_error(error_log,suppress_errors,'DQC.US.0041.73',axis=dim,axis_default=instance.dts.resolve_concept(xml.QName(usgaap_default_member,dim.target_namespace)),default=default_member)
+        if dim.is_explicit():
+            default_member = dim.default_member
+            if not default_member:
+                continue
+            usgaap_default_member = dqc_0041_default_members.get(dim.target_namespace,{}).get(dim.name)
+            if usgaap_default_member and default_member.name != usgaap_default_member:
+                report_error(error_log,suppress_errors,'DQC.US.0041.73',axis=dim,axis_default=instance.dts.resolve_concept(xml.QName(usgaap_default_member,dim.target_namespace)),default=default_member)
 
 def standard_namespaces(dts):
     """Returns a dict of prefix and namespace key/value pairs for standard namespaces."""
@@ -754,7 +805,9 @@ def validate(instance,error_log,params={}):
             dqc_0004(instance,error_log,suppress_errors,namespaces)
             dqc_0005(instance,error_log,suppress_errors,namespaces)
             dqc_0006(instance,error_log,suppress_errors,namespaces)
+            dqc_0008(instance,error_log,suppress_errors,namespaces)
             dqc_0009(instance,error_log,suppress_errors,namespaces)
+            dqc_0011(instance,error_log,suppress_errors,namespaces)
             dqc_0013(instance,error_log,suppress_errors,namespaces)
             dqc_0014(instance,error_log,suppress_errors,namespaces)
             dqc_0015(instance,error_log,suppress_errors,namespaces)

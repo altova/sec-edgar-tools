@@ -11,9 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-__copyright__ = "Copyright 2015, 2016 Altova GmbH"
+__copyright__ = "Copyright 2015-2017 Altova GmbH"
 __license__ = 'http://www.apache.org/licenses/LICENSE-2.0'
-__version__ = '39'
+__version__ = '43'
 
 # This script implements additional validation rules specified in the EDGAR Filer Manual (Volume II) EDGAR Filing (Version 39) (http://www.sec.gov/info/edgar/edmanuals.htm)
 #
@@ -46,6 +46,7 @@ import altova_api.v2.xbrl as xbrl
 import os, sys, re, bisect, datetime, decimal, imghdr
 from urllib.request import pathname2url
 from urllib.parse import urljoin
+from urllib.parse import urlparse
 
 sys.path.append(os.path.dirname(__file__))
 import dqc_validation
@@ -235,10 +236,16 @@ xsi_namespace = 'http://www.w3.org/2001/XMLSchema-instance'
 xs_namespace = 'http://www.w3.org/2001/XMLSchema'
 link_namespace = 'http://www.xbrl.org/2003/linkbase'
 xlink_namespace = 'http://www.w3.org/1999/xlink'
+xl_namespace = 'http://www.xbrl.org/2003/XLink'
 xbrli_namespace = 'http://www.xbrl.org/2003/instance'
 xbrldt_namespace = 'http://xbrl.org/2005/xbrldt'
+xbrldi_namespace = 'http://xbrl.org/2006/xbrldi'
 xhtml_namespace = 'http://www.w3.org/1999/xhtml'
 ix_namespace = 'http://www.xbrl.org/2013/inlineXBRL'
+ixt_namespace = 'http://www.xbrl.org/inlineXBRL/transformation/2015-02-26'
+ixtsec_namespace = 'http://www.sec.gov/inlineXBRL/transformation/2015-08-31'
+ref2004_namespace = 'http://www.xbrl.org/2004/ref'
+ref2006_namespace = 'http://www.xbrl.org/2006/ref'
 
 qname_item = xml.QName('item',xbrli_namespace,'xbrli')
 qname_hypercubeItem = xml.QName('hypercubeItem',xbrldt_namespace,'xbrldt')
@@ -275,6 +282,8 @@ re_consecutive_xml_whitespace = re.compile('[ \t\n\r]{2,}')
 re_cik = re.compile('[0-9]{10}')
 re_dei = re.compile('http://xbrl.us/dei/|http://xbrl.sec.gov/dei/')
 re_gaap = re.compile('http://[^/]+/us-gaap/[0-9-]+')
+re_ifrs = re.compile('http://xbrl.ifrs.org/taxonomy/[0-9-]+/ifrs-full')
+re_rr = re.compile('http://xbrl.sec.gov/rr/[0-9-]+')
 re_definition = re.compile('[0-9]+ - (Statement|Disclosure|Schedule|Document) -.*[^\s]')
 re_html_stag = re.compile('<[:A-z_a-z][:A-z_a-z.0-9-]*(\s+.*)?/?>')
 re_html_href = re.compile('((http://)?www.sec.gov/Archives/edgar/data/.+)|(#.+)|([^/.:]+)')
@@ -319,8 +328,10 @@ def check_valid_ascii(uri, catalog, error_log):
 def check_valid_html(elem, catalog, baseuri, errors, table=None):
     if elem.local_name == 'a':
         href = elem.find_attribute('href')
-        if href and not re_html_href.fullmatch(href.normalized_value):
-            errors.append(xbrl.Error.create('[EFM.5.2.2.3] Reference to {href:value} is not allowed in attribute {href} in element {a}.', location='href:value', href=href, a=elem))
+        if href:
+            href_url = urlparse(href.normalized_value)
+            if href_url.scheme != '' and not re_html_href.fullmatch(href.normalized_value):
+                errors.append(xbrl.Error.create('[EFM.5.2.2.3] Reference to {href:value} is not allowed in attribute {href} in element {a}.', location='href:value', href=href, a=elem))
     elif elem.local_name == 'img':
         src = elem.find_attribute('src')
         if src and not re_html_src.fullmatch(src.normalized_value):
@@ -414,7 +425,7 @@ def get_derived_types(base_to_derived_types,type,derived_types):
     for derived_type in base_to_derived_types.get(type,set()):
         get_derived_types(base_to_derived_types,derived_type,derived_types)
 
-def validate_contexts(instance, error_log, CIK, contextrefs, used_concepts):
+def validate_contexts(instance, error_log, CIK, contextrefs, used_concepts, standard_namespaces):
     contexts_with_start_date = []
     for context in instance.contexts:
         period = context.period
@@ -434,10 +445,11 @@ def validate_contexts(instance, error_log, CIK, contextrefs, used_concepts):
             error_log.report(xbrl.Error.create('[EFM.6.5.1] Identifier {scheme} must contain value {CIK}, not {scheme:value}.', location='scheme:value', CIK='http://www.sec.gov/CIK', scheme=identifier.element.find_attribute('scheme')))
 
         # 6.5.2 An xbrli:identifier element must have the CIK of the registrant as its content.
+        # The EFM test suite classify all CIK mismatch errors as EFM.6.5.23 (and not 6.5.2).
         if not re_cik.fullmatch(identifier.value):
-            error_log.report(xbrl.Error.create('[EFM.6.5.2] Identifier value {identifier:value} must be a CIK containing exactly ten digits from 0 to 9.', location='identifier:value', identifier=identifier))
+            error_log.report(xbrl.Error.create('[EFM.6.5.23] Identifier value {identifier:value} must be a CIK containing exactly ten digits from 0 to 9.', location='identifier:value', identifier=identifier))
         elif CIK is not None and CIK != identifier.value:
-            error_log.report(xbrl.Error.create('[EFM.6.5.2] Identifier value {identifier:value} does not match the company\'s CIK {CIK}.', location='identifier:value', identifier=identifier, CIK=CIK))
+            error_log.report(xbrl.Error.create('[EFM.6.5.23] Identifier value {identifier:value} does not match the company\'s CIK {CIK}.', location='identifier:value', identifier=identifier, CIK=CIK))
             
         # 6.5.3 All xbrli:identifier elements in an instance must have identical content.
         if cikValue is None:
@@ -484,6 +496,11 @@ def validate_contexts(instance, error_log, CIK, contextrefs, used_concepts):
         elif period.is_forever():
             # 6.5.38 Do not use element xbrli:forever in contexts.
             error_log.report(xbrl.Error.create('[EFM.6.5.38] Element {forever} is not allowed within a period.', forever=period.forever))
+            
+        for dim_value in context.dimension_aspect_values:
+            if isinstance(dim_value, xbrl.TypedDimensionAspectValue) and dim_value.dimension.target_namespace not in standard_namespaces:
+                # 6.5.39 The dimension of xbrli:typedMember must be defined in a standard taxonomy.
+                error_log.report(xbrl.Error.create('[EFM.6.5.39] Context {context} references typed dimension {dim} from non standard taxonomy {tns}.', context=context, dim=dim_value.dimension, tns=dim_value.dimension.target_namespace))
     
     return cikValue, required_contexts
 
@@ -558,8 +575,8 @@ def validate_facts(instance,error_log,catalog,domainItemTypes,textBlockItemTypes
 
     return contextrefs, used_concepts
     
-def validate_required_facts(instance,error_log,dei_taxonomy,gaap_taxonomy,required_contexts,cikValue,cikNames,submissionType):
-    dei_namespace = dei_taxonomy.target_namespace
+def validate_required_facts(instance,error_log,taxonomy_per_type,required_contexts,cikValue,cikNames,submissionType):
+    dei_namespace = None if 'DEI' not in taxonomy_per_type else taxonomy_per_type['DEI'].target_namespace
     qname_DocumentType = xml.QName('DocumentType',dei_namespace,'dei')
     qname_DocumentPeriodEndDate = xml.QName('DocumentPeriodEndDate',dei_namespace,'dei')
     qname_AmendmentFlag = xml.QName('AmendmentFlag',dei_namespace,'dei')
@@ -575,7 +592,7 @@ def validate_required_facts(instance,error_log,dei_taxonomy,gaap_taxonomy,requir
     qname_DocumentFiscalYearFocus = xml.QName('DocumentFiscalYearFocus',dei_namespace,'dei')
     qname_DocumentFiscalPeriodFocus = xml.QName('DocumentFiscalPeriodFocus',dei_namespace,'dei')
     qname_EntityCommonStockSharesOutstanding = xml.QName('EntityCommonStockSharesOutstanding',dei_namespace,'dei')
-    qname_StatementClassOfStockAxis = xml.QName('StatementClassOfStockAxis',gaap_taxonomy.target_namespace,'us-gaap') if gaap_taxonomy is not None else None
+    qname_StatementClassOfStockAxis = xml.QName('StatementClassOfStockAxis',taxonomy_per_type['US-GAAP'].target_namespace,'us-gaap') if 'US-GAAP' in taxonomy_per_type else None
     
     required_entity_elements = {
         '10-K': [qname_EntityRegistrantName, qname_EntityCentralIndexKey, qname_EntityCurrentReportingStatus, qname_EntityVoluntaryFilers, qname_CurrentFiscalYearEndDate, qname_EntityFilerCategory, qname_EntityWellKnownSeasonedIssuer, qname_EntityPublicFloat, qname_DocumentFiscalYearFocus, qname_DocumentFiscalPeriodFocus],
@@ -617,11 +634,16 @@ def validate_required_facts(instance,error_log,dei_taxonomy,gaap_taxonomy,requir
 
             if document_type_value not in supported_document_types:
                 error_log.report(xbrl.Error.create('[EFM.6.5.20] Unknown document type {DocumentType:value} in fact {DocumentType} in required context {context}.', DocumentType=document_type, context=required_context))
-            elif submissionType is not None:
-                if submissionType not in submission_types:
-                    error_log.report(xbrl.Error.create('[EFM.6.5.20] Unknown submission type {submissionType}.', severity=xml.ErrorSeverity.WARNING, submissionType=submissionType))
-                elif document_type_value not in submission_types[submissionType]:
-                    error_log.report(xbrl.Error.create('[EFM.6.5.20] Document type {DocumentType:value} in fact {DocumentType} in required context {context} is not allowed for submission type {submissionType}.', DocumentType=document_type, context=required_context, submissionType=submissionType))
+            else:
+                if 'RR' in taxonomy_per_type.keys() and document_type_value not in ['485BPOS', '497']:
+                    error_log.report(xbrl.Error.create('[EFM.6.22.3] Taxonomy class RR may not be used with document type {DocumentType}.', DocumentType=document_type))
+                if 'IFRS' in taxonomy_per_type.keys() and document_type_value in ['485BPOS', '497', 'K SDR', 'L SDR']:
+                    error_log.report(xbrl.Error.create('[EFM.6.22.3] Taxonomy class IFRS may not be used with document type {DocumentType}.', DocumentType=document_type))
+                if submissionType is not None:
+                    if submissionType not in submission_types:
+                        error_log.report(xbrl.Error.create('[EFM.6.5.20] Unknown submission type {submissionType}.', severity=xml.ErrorSeverity.WARNING, submissionType=submissionType))
+                    elif document_type_value not in submission_types[submissionType]:
+                        error_log.report(xbrl.Error.create('[EFM.6.5.20] Document type {DocumentType:value} in fact {DocumentType} in required context {context} is not allowed for submission type {submissionType}.', DocumentType=document_type, context=required_context, submissionType=submissionType))
 
         required_context = next(iter(required_contexts)) if len(required_contexts) == 1 else None
         required_context_text = 'required context {context}' if required_context else 'a required context'
@@ -774,24 +796,29 @@ def validate(instance_uri, instance, error_log, params={}, catalog=xml.Catalog.r
     standard_mapped_uris = {catalog.resolve_uri(uri):uri for uri in standard_uris}
     re_href = re.compile('('+'|'.join(list(map('({0})'.format,standard_uris)))+'|([^/:#]*))(#[a-zA-Z_][a-zA-Z0-9_.-]*)?')
 
-    dei_taxonomy = None
-    gaap_taxonomy = None
+    taxonomy_per_type = {}
+    
     standard_roles = set(xbrl21_roles)
     standard_arcroles = set(xbrl21_arcroles)
     standard_concept_names = {}
     for taxonomy in instance.dts.taxonomy_schemas:
         if taxonomy.target_namespace:
+            tax_type = None
             if re_dei.match(taxonomy.target_namespace):
-                # 6.22 Supported Versions of XBRL Standard Taxonomies
-                if dei_taxonomy:
-                    error_log.report(xbrl.Error.create('[EFM.6.22.3] Cannot reference both DEI {dei} and {dei2} taxonomies.', location=next(instance.dts.entry_points), dei=xbrl.Error.Param(dei_taxonomy.target_namespace,location=dei_taxonomy.document.uri), dei2=xbrl.Error.Param(taxonomy.target_namespace,location=taxonomy.document.uri)))
-                dei_taxonomy = taxonomy
+                tax_type = 'DEI'
             elif re_gaap.match(taxonomy.target_namespace):
+                tax_type = 'US-GAAP'
+            elif re_ifrs.match(taxonomy.target_namespace):
+                tax_type = 'IFRS'
+            elif re_rr.match(taxonomy.target_namespace):
+                tax_type = 'RR'
+                
+            if tax_type:
                 # 6.22 Supported Versions of XBRL Standard Taxonomies
-                if gaap_taxonomy:
-                    error_log.report(xbrl.Error.create('[EFM.6.22.3] Cannot reference both US-GAAP {gaap} and {gaap2} taxonomies.', location=instance, gaap=xbrl.Error.Param(gaap_taxonomy.target_namespace,location=gaap_taxonomy.document.uri), gaap2=xbrl.Error.Param(taxonomy.target_namespace,location=taxonomy.document.uri)))
-                gaap_taxonomy = taxonomy
-
+                if tax_type in taxonomy_per_type:
+                    error_log.report(xbrl.Error.create('[EFM.6.22.3] Cannot reference both {type} {tns1} and {tns2} taxonomies.', location=instance, type=tax_type, tns1=xbrl.Error.Param(taxonomy_per_type[tax_type].target_namespace,location=taxonomy_per_type[tax_type].document.uri), tns2=xbrl.Error.Param(taxonomy.target_namespace,location=taxonomy.document.uri)))
+                taxonomy_per_type[tax_type] = taxonomy
+                
         if taxonomy.document.uri in standard_mapped_uris:
             for role_type in taxonomy.role_types:
                 standard_roles.add(role_type.role_uri)
@@ -800,7 +827,7 @@ def validate(instance_uri, instance, error_log, params={}, catalog=xml.Catalog.r
             for concept in taxonomy.concepts:
                 standard_concept_names[concept.name] = concept
                 
-    if dei_taxonomy is None:
+    if 'DEI' not in taxonomy_per_type:
         error_log.report(xbrl.Error.create('Instance {xbrl} does not appear to be a SEC filing.', xbrl=instance.document_element))
         return
         
@@ -906,10 +933,10 @@ def validate(instance_uri, instance, error_log, params={}, catalog=xml.Catalog.r
                     error_log.report(xbrl.Error.create('[EFM.6.7.4] Company extension schema {schema} must have a target namespace that matches {pattern}.', location='schema', schema=schema, pattern='http://{authority}/{versionDate}'))
             else:
                 m = re_company_uri.fullmatch(schema.target_namespace)
+                tns_attr = schema.element.find_attribute('targetNamespace')
                 if m:
                     # 6.7.3 The authority part of an xsd:schema targetNamespace attribute must not equal the authority part of a targetNamespace attribute of any standard taxonomy schema.
                     if m.group(1) in standard_authorities:
-                        tns_attr = schema.element.find_attribute('targetNamespace')
                         error_log.report(xbrl.Error.create('[EFM.6.7.3] Target namespace {tns:value} must not use an authority part {authority} of a standard taxonomy schema.', location='tns:value', tns=tns_attr, authority=m.group(1)))
                     
                     # 6.7.4 The targetNamespace attribute must match http://{authority}/{versionDate}.
@@ -919,28 +946,26 @@ def validate(instance_uri, instance, error_log, params={}, catalog=xml.Catalog.r
                         else:
                             versionDate = datetime.date(int(m.group(6)),int(m.group(7)),int(m.group(8)))
                     except ValueError:
-                        tns_attr = schema.element.find_attribute('targetNamespace')
                         error_log.report(xbrl.Error.create('[EFM.6.7.4] Target namespace {tns:value} must match {pattern}.', location='tns:value', tns=tns_attr, pattern='http://{authority}/{versionDate}'))
                 else:
                     # 6.7.4 The targetNamespace attribute must match http://{authority}/{versionDate}.
-                    tns_attr = schema.element.find_attribute('targetNamespace')
                     error_log.report(xbrl.Error.create('[EFM.6.7.4] Target namespace {tns:value} must match {pattern}.', location='tns:value', tns=tns_attr, pattern='http://{authority}/{versionDate}'))
             
                 # 6.7.7 Element xsd:schema must bind a Recommended Namespace Prefix for the targetNamespace attribute that does not contain the underscore character.
                 for attr in schema.element.namespace_attributes:
                     if attr.normalized_value == schema.target_namespace:
-                        recommended_namespace_prefix = attr
+                        if recommended_namespace_prefix:
+                            error_log.report(xbrl.Error.create('[EFM.6.7.7] Prefixes {prefix1} and {prefix2} are bound to target namesapce {tns:value}.', location=schema, prefix1=recommended_namespace_prefix.local_name, prefix2=attr.local_name, tns=tns_attr))
+                        else:
+                            recommended_namespace_prefix = attr
                 if recommended_namespace_prefix is None or not recommended_namespace_prefix.prefix:
-                    tns_attr = schema.element.find_attribute('targetNamespace')
                     error_log.report(xbrl.Error.create('[EFM.6.7.7] Recommended namespace prefix for target namespace {tns:value} is missing.', location=schema, tns=tns_attr))
                 elif '_' in recommended_namespace_prefix.local_name:
-                    tns_attr = schema.element.find_attribute('targetNamespace')
                     prefix = xbrl.Error.Param(recommended_namespace_prefix.local_name,location=recommended_namespace_prefix)
                     error_log.report(xbrl.Error.create('[EFM.6.7.7] Recommended namespace prefix {prefix} for target namespace {tns:value} must not contain an underscore character.', location='prefix', prefix=prefix, tns=tns_attr))
             
                 # 6.7.30 The content of a targetnamespace, roleURI or arcroleURI attribute in UTF-8 must not exceed 255 bytes in length.
                 if len(schema.target_namespace.encode('utf-8')) > 255:
-                    tns_attr = schema.element.find_attribute('targetNamespace')
                     error_log.report(xbrl.Error.create('[EFM.6.7.30] The target namespace {tns:value} must not exceed 255 bytes in UTF-8.', tns=tns_attr))
             
             # 6.7.8 Element xsd:schema must not contain any occurrences of 'embedded' linkbases.
@@ -1194,10 +1219,10 @@ def validate(instance_uri, instance, error_log, params={}, catalog=xml.Catalog.r
             if label_attr.normalized_value not in to_labels:
                 error_log.report(xbrl.Error.create('[EFM.6.5.33] Non-empty footnote {footnote} must be linked to at least one fact.', location=elem, footnote=elem))
 
-    cikValue, required_contexts = validate_contexts(instance,error_log,CIK,contextrefs,used_concepts)
+    cikValue, required_contexts = validate_contexts(instance,error_log,CIK,contextrefs,used_concepts,standard_namespaces)
     validate_units(instance,error_log)
 
-    validate_required_facts(instance,error_log,dei_taxonomy,gaap_taxonomy,required_contexts,cikValue,cikNames,submissionType)
+    validate_required_facts(instance,error_log,taxonomy_per_type,required_contexts,cikValue,cikNames,submissionType)
 
     positive_axes = set()
     negative_axis_rels = []
@@ -1653,32 +1678,56 @@ allowed_inlinexbrl_html_tags = set([
 ])
 allowed_inlinexbrl_html_attributes = set([
     xml.QName('align'),
+    xml.QName('alink'),
     xml.QName('alt'),
+    xml.QName('bgcolor'),
     xml.QName('border'),
     xml.QName('cellpadding'),
     xml.QName('cellspacing'),
     xml.QName('class'),
+    xml.QName('clear'),
+    xml.QName('color'),
     xml.QName('colspan'),
+    xml.QName('compact'),
     xml.QName('content'),
     xml.QName('dir'),
     xml.QName('height'),
     xml.QName('href'),
-    xml.QName('http-equiv'),
+    xml.QName('http-equiv'), # Used in the efm testsuite but not mentioned in the actual EDGAR filer manual!
     xml.QName('id'),
-    xml.QName('longdesc'),  # Used in the efm testsuite but not mentioned in the actual EDGAR filer manual!
+    xml.QName('lang'),
+    xml.QName('link'),
+    xml.QName('longdesc'), # Used in the efm testsuite but not mentioned in the actual EDGAR filer manual!
     xml.QName('name'),
+    xml.QName('noshade'),
+    xml.QName('nowrap'),
+    xml.QName('prompt'),
     xml.QName('rel'),
     xml.QName('rev'),
     xml.QName('rowspan'),
+    xml.QName('size'),
     xml.QName('src'),
+    xml.QName('start'),
     xml.QName('style'),
+    xml.QName('summary'), # Used in the efm testsuite but not mentioned in the actual EDGAR filer manual!
+    xml.QName('text'),
     xml.QName('title'),
+    xml.QName('type'),
     xml.QName('valign'),
-    xml.QName('version'),
+    xml.QName('vlink'),
     xml.QName('width'),
-    xml.QName('lang',xml_namespace),
-    xml.QName('schemaLocation',xsi_namespace)
+    xml.QName('lang', xml_namespace),
+    xml.QName('schemaLocation', xsi_namespace),
+    xml.QName('noNamespaceSchemaLocation', xsi_namespace)
 ])
+
+# list of allowed prefixes for some standard namespaces
+allowed_namespace_prefixes = {
+    xhtml_namespace: '',
+    ix_namespace: 'ix',
+    ixt_namespace: 'ixt',
+    ixtsec_namespace: 'ixt-sec'
+}
 
 # returns the value of the -sec-ix-hidden property, or None if absent.
 def get_sec_ix_hidden(value):
@@ -1690,6 +1739,18 @@ def get_sec_ix_hidden(value):
     return None
 
 
+# check namespace bindings of standard namespaces
+def check_ixbrl_namespaces(elem, error_log):
+    for nsattr in elem.namespace_attributes:
+        namespace = nsattr.normalized_value
+        if namespace in allowed_namespace_prefixes.keys():
+            prefix = '' if nsattr.prefix is None else nsattr.local_name
+            recommended_prefix = allowed_namespace_prefixes[namespace]
+            if prefix != recommended_prefix:
+                # 5.2.5 standard namespace prefixes
+                error_log.report(xbrl.Error.create('[EFM.5.2.5] At element {elem} the prefix {prefix} of namespace declaration {namespace} must be replaced by {recommended_prefix}.', elem=elem, prefix=prefix, namespace=namespace, recommended_prefix=recommended_prefix))
+    
+    
 def check_valid_ixbrl(elem, catalog, error_log, ix_hidden_data, table=None):
     if elem.find_attribute(xml.QName('schemaLocation',xsi_namespace)):
         # 5.2.5.13 Other Inline XBRL restrictions
@@ -1745,7 +1806,8 @@ def check_valid_ixbrl(elem, catalog, error_log, ix_hidden_data, table=None):
         if elem.local_name == 'a':
             href = elem.find_attribute('href')
             if href:
-                if not re_html_href.fullmatch(href.normalized_value):
+                href_url = urlparse(href.normalized_value)
+                if href_url.scheme != '' and not re_html_href.fullmatch(href.normalized_value):
                     # 5.2.5.10 HTML attribute values that are not allowed in Inline XBRL Documents
                     # Attribute href (on the <a> tag) may only reference other HTML, ASCII and Inline XBRL documents that are local or are located on the SEC web site as attachments to previously accepted submissions. This precludes active content such as javascript from appearing in the href attribute.
                     error_log.report(xbrl.Error.create('[EFM.5.2.5.10] Reference to {href:value} is not allowed in attribute {href} in element {a}.', location='href:value', href=href, a=elem))
@@ -1878,6 +1940,10 @@ def validate_ixbrl(instance, error_log, catalog=xml.Catalog.root_catalog()):
             error_log.report(xbrl.Error.create('[EFM.5.2.5.3] Element {head} must contain a <meta http-equiv="Content-Type" content="text/html"> child element.', head=head))
     
     ix_hidden_data = {"facts": {}, "refs": {}, "schemaRef": None}
+
+    # only check namespace bindings on document element, otherwise some testcases FAIL
+    check_ixbrl_namespaces(instance.document_element, error_log)
+    
     check_valid_ixbrl(instance.document_element, catalog, error_log, ix_hidden_data)
     if ix_hidden_data["schemaRef"] is not None:
         # no xbrl instance/dts in on_ixbrl_finished, so it must be loaded here.
