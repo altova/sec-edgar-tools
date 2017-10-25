@@ -235,5 +235,70 @@
         "dim": "axis",
         "name": "StatementBusinessSegmentsAxis",
         "test": "equals"
+    },
+    {
+        "arg1": {
+            "dim": "axis",
+            "name": "ConsolidatedEntitiesAxis",
+            "test": "equals"
+        },
+        "arg2": {
+            "dim": "member",
+            "name": "ParentCompanyMember",
+            "test": "equals"
+        },
+        "test": "and"
+    },
+    {
+        "arg1": {
+            "dim": "axis",
+            "name": "ConsolidatedEntitiesAxis",
+            "test": "equals"
+        },
+        "arg2": {
+            "dim": "member",
+            "name": "SubsidiariesMember",
+            "test": "equals"
+        },
+        "test": "and"
+    },
+    {
+        "arg1": {
+            "dim": "axis",
+            "name": "ConsolidatedEntitiesAxis",
+            "test": "equals"
+        },
+        "arg2": {
+            "dim": "member",
+            "name": "GuarantorSubsidiariesMember",
+            "test": "equals"
+        },
+        "test": "and"
+    },
+    {
+        "arg1": {
+            "dim": "axis",
+            "name": "ConsolidatedEntitiesAxis",
+            "test": "equals"
+        },
+        "arg2": {
+            "dim": "member",
+            "name": "NonGuarantorSubsidiariesMember",
+            "test": "equals"
+        },
+        "test": "and"
+    },
+    {
+        "arg1": {
+            "dim": "axis",
+            "name": "ConsolidatedEntitiesAxis",
+            "test": "equals"
+        },
+        "arg2": {
+            "dim": "member",
+            "name": "SubsidiaryIssuerMember",
+            "test": "equals"
+        },
+        "test": "and"
     }
 ]

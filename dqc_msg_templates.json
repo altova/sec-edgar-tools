@@ -40,6 +40,11 @@
 		"version": ["1.0","November 19, 2015","http://xbrl.us/data-rule/dqc_0006/"],
 		"msg": "The number of days, ${fact1.period.durationDays}, in the date range reported for ${fact1.label}, ${fact1.period.startDate} to ${fact1.period.endDate} is not consistent with the ${dei:DocumentFiscalPeriodFocus.fact.label} value of ${dei:DocumentFiscalPeriodFocus.fact.value}."
 	},
+	"DQC.US.0008": {
+		"version": ["4.0","October 4, 2017","http://xbrl.us/data-rule/dqc_0008/"],
+		"msg": "The calculation in the extension taxonomy shows ${extCalcTarget.label} as a calculation component of ${extCalcSource.label}. This is the opposite of a calculation defined in the base US GAAP taxonomy.",
+		"hint": "Check that the calculation is correct or that you have used the correct tag for the two elements identified in the calculation."
+	},
 	"DQC.US.0009": {
 		"version": ["1.0","November 19, 2015","http://xbrl.us/data-rule/dqc_0009/"],
 		"msg": "The value of ${fact1.label}, ${fact1.value}, should be less than or equal to ${fact2.label}, ${fact2.value}."
@@ -73,6 +78,11 @@
 		"version": ["1.0","November 19, 2015","http://xbrl.us/data-rule/dqc_0009/"],
 		"msg": "The value of ${fact1.label}, ${fact1.value}, should be less than or equal to ${fact2.label}, ${fact2.value}.",
 		"hint": "${fact1.label} must be less than or equal to ${fact2.label}, as it does not include assumptions about future compensation levels."
+	},	
+	"DQC.US.0011": {
+		"version": ["4.0","October 4, 2017","http://xbrl.us/data-rule/dqc_0011/"],
+		"msg": "It is expected that ${fact1.label} with a value of ${fact1.value} should be equal to the dimensionally qualified concept, ${fact2.label} with the dimension ${fact2.dimensions} and a reported value of ${fact2.value} multiplied by ${weight}.",
+		"hint": "This error occurs when the dimensionally qualified fact is not equal to the value input for the standalone item."
 	},	
 	"DQC.US.0013": {
 		"version": ["1.0","Public Exposure August 31, 2016","http://xbrl.us/data-rule/dqc_0013/"],

@@ -1,4 +1,4 @@
-﻿# Copyright 2015, 2016 Altova GmbH
+﻿# Copyright 2015 Altova GmbH
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-__copyright__ = "Copyright 2015, 2016 Altova GmbH"
+__copyright__ = "Copyright 2015-2017 Altova GmbH"
 __license__ = 'http://www.apache.org/licenses/LICENSE-2.0'
 
 # This script generates HTML reports from a SEC EDGAR filing.
