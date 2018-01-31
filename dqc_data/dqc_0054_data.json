@@ -1,0 +1,5 @@
+[
+	["DQC.US.0054.7490", "ScheduleOfDefinedBenefitPlansDisclosuresTable", "StatementGeographicalAxis"],
+	["DQC.US.0054.7491", "DefinedContributionPlanTable", "StatementGeographicalAxis"],
+	["DQC.US.0054.7492", "DefinedBenefitPlansAndOtherPostretirementBenefitPlansDisclosuresTable", "StatementGeographicalAxis"]
+]

@@ -1,0 +1,5 @@
+[
+	[ "NetCashProvidedByUsedInContinuingOperations", -1, { "EffectOfExchangeRateOnCashAndCashEquivalents": "DQC.US.0046.6839", "EffectOfExchangeRateOnCashAndCashEquivalentsContinuingOperations": "DQC.US.0046.6840", "EffectOfExchangeRateOnCashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents": "DQC.US.0046.6841" } ],
+	[ "CashAndCashEquivalentsPeriodIncreaseDecreaseExcludingExchangeRateEffect", -1, { "EffectOfExchangeRateOnCashAndCashEquivalents": "DQC.US.0046.6842" } ],
+	[ "NetCashProvidedByUsedInDiscontinuedOperations", -1, { "EffectOfExchangeRateOnCashAndCashEquivalentsDiscontinuedOperations": "DQC.US.0046.7480" } ]
+]

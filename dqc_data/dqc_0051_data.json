@@ -1,0 +1,21 @@
+{
+	"rules": { 
+		"IncomeLossIncludingPortionAttributableToNoncontrollingInterest": "DQC.US.0051.7484",
+		"IncomeLossAttributableToParent": "DQC.US.0051.7485",
+		"IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest": "DQC.US.0051.7486"
+	},
+	"tax_items": [
+		"IncomeTaxExpenseBenefit",
+		"CurrentIncomeTaxExpenseBenefit",
+		"CurrentForeignTaxExpenseBenefit",
+		"CurrentFederalStateAndLocalTaxExpenseBenefit",
+		"CurrentFederalTaxExpenseBenefit",
+		"CurrentStateAndLocalTaxExpenseBenefit",
+		"DeferredIncomeTaxExpenseBenefit",
+		"DeferredForeignIncomeTaxExpenseBenefit",
+		"DeferredFederalStateAndLocalTaxExpenseBenefit",
+		"DeferredFederalIncomeTaxExpenseBenefit",
+		"DeferredStateAndLocalIncomeTaxExpenseBenefit",
+		"OtherTaxExpenseBenefit"
+	]
+}

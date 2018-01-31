@@ -1,0 +1,8 @@
+[
+	"CashPeriodIncreaseDecrease",
+	"CashAndCashEquivalentsPeriodIncreaseDecrease",
+	"CashAndCashEquivalentsPeriodIncreaseDecreaseExcludingExchangeRateEffect",
+	"CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsPeriodIncreaseDecreaseIncludingExchangeRateEffect",
+	"CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsPeriodIncreaseDecreaseExcludingExchangeRateEffect",
+	"NetCashProvidedByUsedInContinuingOperations"
+]

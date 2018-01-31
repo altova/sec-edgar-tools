@@ -1,0 +1,5 @@
+[
+	["DQC.US.0060.7495", "NetCashProvidedByUsedInFinancingActivitiesContinuingOperations", ["CashProvidedByUsedInFinancingActivitiesDiscontinuedOperations", "NetCashProvidedByUsedInFinancingActivities" ], "NetCashProvidedByUsedInFinancingActivities"],
+	["DQC.US.0060.7496", "NetCashProvidedByUsedInInvestingActivitiesContinuingOperations", ["CashProvidedByUsedInInvestingActivitiesDiscontinuedOperations", "NetCashProvidedByUsedInInvestingActivities" ], "NetCashProvidedByUsedInInvestingActivities"],
+	["DQC.US.0060.7497", "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations", ["CashProvidedByUsedInOperatingActivitiesDiscontinuedOperations", "NetCashProvidedByUsedInOperatingActivities" ], "NetCashProvidedByUsedInOperatingActivities"]
+]

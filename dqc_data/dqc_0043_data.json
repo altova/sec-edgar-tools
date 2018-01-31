@@ -1,0 +1,38 @@
+{
+	"rules": [
+		["DQC.US.0043.7488", "NetCashProvidedByUsedInOperatingActivities"],
+		["DQC.US.0043.6833", "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations"]
+	],
+	"exclude": [
+		"ProfitLoss",
+		"NetIncomeLoss",
+		"IncomeLossFromContinuingOperationsIncludingPortionAttributableToNoncontrollingInterest",
+		"IncomeLossFromContinuingOperations",
+		"IncomeLossAttributableToParent",
+		"IncomeLossIncludingPortionAttributableToNoncontrollingInterest",
+		"IncomeLossBeforeExtraordinaryItemsAndCumulativeEffectOfChangeInAccountingPrinciple",
+		"NetIncomeLossAvailableToCommonStockholdersBasic",
+		"NetIncomeLossAllocatedToGeneralPartners",
+		"NetIncomeLossAllocatedToLimitedPartners",
+		"DiscontinuedOperationIncomeLossFromDiscontinuedOperationBeforeIncomeTax",
+		"ExtraordinaryItemGainOrLossNetOfTaxAttributableToNoncontrollingInterest",
+		"ExtraordinaryItemGainOrLossNetOfTaxAttributableToReportingEntity",
+		"ExtraordinaryItemNetOfTax",
+		"ExtraordinaryItemsGross",
+		"GainLossOnSaleOfPropertiesNetOfApplicableIncomeTaxes",
+		"IncomeLossAttributableToNoncontrollingInterest",
+		"IncomeLossFromContinuingOperationsAttributableToNoncontrollingEntity",
+		"IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
+		"IncomeLossFromDiscontinuedOperationsNetOfTax",
+		"IncomeLossFromDiscontinuedOperationsNetOfTaxAttributableToNoncontrollingInterest",
+		"IncomeLossFromDiscontinuedOperationsNetOfTaxAttributableToReportingEntity",
+		"NetIncomeLossAttributableToNoncontrollingInterest",
+		"IncomeLossBeforeGainOrLossOnSaleOfPropertiesExtraordinaryItemsAndCumulativeEffectsOfAccountingChanges",
+		"NetIncomeLossAttributableToParentNetOfFederalHomeLoanBankAssessments",
+		"ComprehensiveIncomeNetOfTax",
+		"IncomeLossFromContinuingOperationsBeforeIncomeTaxesDomestic",
+		"IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments",
+		"IncomeLossFromContinuingOperationsBeforeInterestExpenseInterestIncomeIncomeTaxesExtraordinaryItemsNoncontrollingInterestsNet",
+		"IncomeLossFromSubsidiariesNetOfTax"
+	]
+}
