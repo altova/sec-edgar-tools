@@ -121,6 +121,8 @@ def get_namespace(namespaces, prefix):
     ns, _ = namespaces.get(prefix, (None, None))
     return ns
 
+def get_namespace_and_year(namespaces, prefix):
+    return namespaces.get(prefix, (None, 0))
 
 def prefixed_name(x):
     """Give a fact of concept returns the name formatted as [prefix:]name."""
@@ -694,6 +696,8 @@ def dqc_0011(instance, error_log, suppress_errors, namespaces):
         dimConcept = instance.dts.resolve_concept(xml.QName(dimItemName, ns))
         axisConcept = instance.dts.resolve_concept(xml.QName(axisName, ns))
         memberConcept = instance.dts.resolve_concept(xml.QName(memberName, ns))
+        if lineConcept is None or dimConcept is None or axisConcept is None or memberConcept is None:
+            continue
         # select all facts with name lineItemName and no value for explicit dimension axisName
         lineItemConstraintSet = xbrl.ConstraintSet()
         lineItemConstraintSet.add(xbrl.ConceptAspectValue(lineConcept))
@@ -1142,7 +1146,7 @@ def dqc_0052(instance, error_log, suppress_errors, namespaces):
     """DQC_0052 Member Values"""
 
     dts = instance.dts
-    ns, year = namespaces.get('us-gaap')
+    ns, year = get_namespace_and_year(namespaces, 'us-gaap')
     if int(year) < 2017:
         return
     for rule, dim_name, member_name in dqc_0052_data:
@@ -1159,7 +1163,7 @@ def dqc_0053(instance, error_log, suppress_errors, namespaces):
     """DQC_0053 Excluded Members from an Axis"""
 
     dts = instance.dts
-    ns, year = namespaces.get('us-gaap')
+    ns, year = get_namespace_and_year(namespaces, 'us-gaap')
     if int(year) < 2017:
         return
     for rule, dim_name, member_name in dqc_0053_data:
@@ -1188,7 +1192,7 @@ def dqc_0054(instance, error_log, suppress_errors, namespaces):
     """DQC_0054 Excluded Dimensions from a Table"""
 
     dts = instance.dts
-    ns, year = namespaces.get('us-gaap')
+    ns = get_namespace(namespaces, 'us-gaap')
     for rule, hc_name, dim_name in dqc_0054_data:
         hc = dts.resolve_concept(xml.QName(hc_name, ns))
         dimension = dts.resolve_concept(xml.QName(dim_name, ns))
@@ -1205,7 +1209,7 @@ def dqc_0055(instance, error_log, suppress_errors, namespaces):
     """DQC_0055 Required Member on An Axis"""
 
     dts = instance.dts
-    ns, year = namespaces.get('us-gaap')
+    ns, year = get_namespace_and_year(namespaces, 'us-gaap')
     if int(year) < 2017:
         return
     for rule, axis_name, domain_name, member_names in dqc_0055_data:
@@ -1225,7 +1229,7 @@ def dqc_0057(instance, error_log, suppress_errors, namespaces):
     """DQC_0057 Cash Flow Opening and Closing Balances"""
 
     dts = instance.dts
-    ns, year = namespaces.get('us-gaap')
+    ns = get_namespace(namespaces, 'us-gaap')
 
     expectedBalanceElements = set(filter(lambda x: x is not None, [dts.resolve_concept(xml.QName(_, ns)) for _ in dqc_0057_data]))
 
@@ -1245,7 +1249,7 @@ def dqc_0060(instance, error_log, suppress_errors, namespaces):
     """DQC_0060 Element Dependence for Specific Elements"""
 
     dts = instance.dts
-    ns, year = namespaces.get('us-gaap')
+    ns = get_namespace(namespaces, 'us-gaap')
 
     for rule, reported_name, dependent_names, general_name in dqc_0060_data:
         reported_concept = dts.resolve_concept(xml.QName(reported_name, ns))
@@ -1281,7 +1285,7 @@ def dqc_0061(instance, error_log, suppress_errors, namespaces):
     """DQC_0061 Cash Flow Continuing Operations Elements not Used"""
 
     dts = instance.dts
-    ns, year = namespaces.get('us-gaap')
+    ns = get_namespace(namespaces, 'us-gaap')
 
     for rule, parent_name, child_name in dqc_0061_data:
         parent_concept = dts.resolve_concept(xml.QName(parent_name, ns))
@@ -1299,7 +1303,7 @@ def dqc_0062(instance, error_log, suppress_errors, namespaces):
     """DQC_0062 No Fact Value for Change in Cash"""
 
     dts = instance.dts
-    ns, year = namespaces.get('us-gaap')
+    ns = get_namespace(namespaces, 'us-gaap')
     cashflow_linkroles = _get_cashflow_linkroles(dts, ns)
     if cashflow_linkroles:
         for fact_name in dqc_0062_data:
@@ -1317,7 +1321,7 @@ def dqc_0065(instance, error_log, suppress_errors, namespaces):
     """DQC_0065 Interest Paid Net (Operating) Not on Cash Flow"""
 
     dts = instance.dts
-    ns, year = namespaces.get('us-gaap')
+    ns = get_namespace(namespaces, 'us-gaap')
 
     cashflow_concept = dts.resolve_concept(xml.QName('SupplementalCashFlowInformationAbstract', ns))
     interestPaid_concept = dts.resolve_concept(xml.QName('InterestPaid', ns))
@@ -1370,39 +1374,42 @@ def validate(instance, error_log, params={}):
         suppress_errors = set(code.strip() for code in parse_suppress_errors(params))
         namespaces = standard_namespaces(instance.dts)
         if 'dei' in namespaces:
-            dqc_0001(instance, error_log, suppress_errors, namespaces)
-            dqc_0004(instance, error_log, suppress_errors, namespaces)
-            dqc_0005(instance, error_log, suppress_errors, namespaces)
-            dqc_0006(instance, error_log, suppress_errors, namespaces)
-            dqc_0008(instance, error_log, suppress_errors, namespaces)
-            dqc_0009(instance, error_log, suppress_errors, namespaces)
-            dqc_0011(instance, error_log, suppress_errors, namespaces)
-            dqc_0013(instance, error_log, suppress_errors, namespaces)
-            dqc_0014(instance, error_log, suppress_errors, namespaces)
-            dqc_0015(instance, error_log, suppress_errors, namespaces)
-            dqc_0018(instance, error_log, suppress_errors, namespaces)
-            dqc_0033(instance, error_log, suppress_errors, namespaces)
-            dqc_0036(instance, error_log, suppress_errors, namespaces)
-            dqc_0041(instance, error_log, suppress_errors, namespaces)
-            # dqc v5 checks
-            dqc_0043(instance, error_log, suppress_errors, namespaces)
-            dqc_0044(instance, error_log, suppress_errors, namespaces)
-            dqc_0045(instance, error_log, suppress_errors, namespaces)
-            dqc_0046(instance, error_log, suppress_errors, namespaces)
-            dqc_0047(instance, error_log, suppress_errors, namespaces)
-            dqc_0048(instance, error_log, suppress_errors, namespaces)
-            dqc_0049(instance, error_log, suppress_errors, namespaces)
-            dqc_0051(instance, error_log, suppress_errors, namespaces)
-            dqc_0052(instance, error_log, suppress_errors, namespaces)
-            dqc_0053(instance, error_log, suppress_errors, namespaces)
-            dqc_0054(instance, error_log, suppress_errors, namespaces)
-            dqc_0055(instance, error_log, suppress_errors, namespaces)
-            dqc_0057(instance, error_log, suppress_errors, namespaces)
-            dqc_0060(instance, error_log, suppress_errors, namespaces)
-            dqc_0061(instance, error_log, suppress_errors, namespaces)
-            dqc_0062(instance, error_log, suppress_errors, namespaces)
-            dqc_0065(instance, error_log, suppress_errors, namespaces)
-
+            try:
+                dqc_0001(instance, error_log, suppress_errors, namespaces)
+                dqc_0004(instance, error_log, suppress_errors, namespaces)
+                dqc_0005(instance, error_log, suppress_errors, namespaces)
+                dqc_0006(instance, error_log, suppress_errors, namespaces)
+                dqc_0008(instance, error_log, suppress_errors, namespaces)
+                dqc_0009(instance, error_log, suppress_errors, namespaces)
+                dqc_0011(instance, error_log, suppress_errors, namespaces)
+                dqc_0013(instance, error_log, suppress_errors, namespaces)
+                dqc_0014(instance, error_log, suppress_errors, namespaces)
+                dqc_0015(instance, error_log, suppress_errors, namespaces)
+                dqc_0018(instance, error_log, suppress_errors, namespaces)
+                dqc_0033(instance, error_log, suppress_errors, namespaces)
+                dqc_0036(instance, error_log, suppress_errors, namespaces)
+                dqc_0041(instance, error_log, suppress_errors, namespaces)
+                # dqc v5 checks
+                dqc_0043(instance, error_log, suppress_errors, namespaces)
+                dqc_0044(instance, error_log, suppress_errors, namespaces)
+                dqc_0045(instance, error_log, suppress_errors, namespaces)
+                dqc_0046(instance, error_log, suppress_errors, namespaces)
+                dqc_0047(instance, error_log, suppress_errors, namespaces)
+                dqc_0048(instance, error_log, suppress_errors, namespaces)
+                dqc_0049(instance, error_log, suppress_errors, namespaces)
+                dqc_0051(instance, error_log, suppress_errors, namespaces)
+                dqc_0052(instance, error_log, suppress_errors, namespaces)
+                dqc_0053(instance, error_log, suppress_errors, namespaces)
+                dqc_0054(instance, error_log, suppress_errors, namespaces)
+                dqc_0055(instance, error_log, suppress_errors, namespaces)
+                dqc_0057(instance, error_log, suppress_errors, namespaces)
+                dqc_0060(instance, error_log, suppress_errors, namespaces)
+                dqc_0061(instance, error_log, suppress_errors, namespaces)
+                dqc_0062(instance, error_log, suppress_errors, namespaces)
+                dqc_0065(instance, error_log, suppress_errors, namespaces)
+            except RuntimeError as e:
+                if str(e) != "Error limit exceeded":
+                   raise
 
 # Main script callback entry points. These functions will be called by RaptorXML after the XBRL instance validation job has finished.
 
