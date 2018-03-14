@@ -13,7 +13,7 @@
 # limitations under the License.
 __copyright__ = "Copyright 2015-2018 Altova GmbH"
 __license__ = 'http://www.apache.org/licenses/LICENSE-2.0'
-__version__ = '5.0.4'
+__version__ = '5.1.0'
 
 # This script implements additional data quality validation rules as specified by the XBRL US Data Quality Committee (http://xbrl.us/data-quality/rules-guidance/).
 # This script is designed to be used standalone or in conjunction with the EDGAR Filer Manual (EFM) rules implemented in script efm_validation.py. When using the efm_validation.py script, the DQC validation rules can be enabled with the enableDqcValidation option.
@@ -494,7 +494,7 @@ def dqc_0001(instance, error_log, suppress_errors, namespaces):
                     elif rule['disallowed']:
                         valid = member.name not in rule['disallowed']
                     else:
-                        valid = member.name in rule['allowed']
+                        valid = rule['allowed'] if isinstance(rule['allowed'], bool) else member.name in rule['allowed']
                     if not valid and (dim, member) not in handled:
                         # Mimick Arelle's behaviour of only reporting the first occurrence of each type of error
                         handled.add((dim, member))
@@ -954,7 +954,7 @@ def _dqc_0044_check_item(instance, error_log, suppress_errors, rel, parent, rule
     item = rel.target_concept
     if item.name in accrual_concepts:
         # [CHECK] should we report nil valued facts?
-        for fact in instance.facts.filter(item, allow_nil=False):
+        for fact in instance.facts.filter(item, allow_nil=True):
             report_error(error_log, suppress_errors, rule_id, fact, fact1=fact, sum=parent)
 
     return True  # continue traversing the subtree of item
@@ -1259,12 +1259,12 @@ def dqc_0060(instance, error_log, suppress_errors, namespaces):
             continue
         reported_concept_constraint_set = xbrl.ConstraintSet()
         reported_concept_constraint_set.add(xbrl.ConceptAspectValue(reported_concept))
-        for fact in instance.facts.filter(reported_concept_constraint_set, allow_nil=False, allow_additional_dimensions=False):
+        for fact in instance.facts.filter(reported_concept_constraint_set, allow_nil=True, allow_additional_dimensions=False):
             constraintSet = xbrl.ConstraintSet(fact)
             dependent_fact_found = False
             for dependent_concept in dependent_concepts:
                 constraintSet.add(xbrl.ConceptAspectValue(dependent_concept))
-                if len(instance.facts.filter(constraintSet, allow_nil=False, allow_additional_dimensions=False)) > 0:
+                if len(instance.facts.filter(constraintSet, allow_nil=True, allow_additional_dimensions=False)) > 0:
                     dependent_fact_found = True
                     break
             if not dependent_fact_found:
