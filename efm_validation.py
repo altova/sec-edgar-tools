@@ -13,9 +13,9 @@
 # limitations under the License.
 __copyright__ = "Copyright 2015-2018 Altova GmbH"
 __license__ = 'http://www.apache.org/licenses/LICENSE-2.0'
-__version__ = '43'
+__version__ = '47'
 
-# This script implements additional validation rules specified in the EDGAR Filer Manual (Volume II) EDGAR Filing (Version 43) (http://www.sec.gov/info/edgar/edmanuals.htm)
+# This script implements additional validation rules specified in the EDGAR Filer Manual (Volume II) EDGAR Filing (Version 47) (http://www.sec.gov/info/edgar/edmanuals.htm)
 #
 # The following script parameters can be additionally specified:
 #
@@ -43,6 +43,7 @@ import altova_api.v2.xml as xml
 import altova_api.v2.xsd as xsd
 import altova_api.v2.xbrl as xbrl
 
+import collections
 import os
 import sys
 import re
@@ -298,6 +299,20 @@ re_period_start_or_end = re.compile('[pP]eriod(Start|End)')
 re_display_none = re.compile('(.*;)?\s*display\s*:\s*none\s*(;.*)?')
 
 
+def get_standard_namespace2uris(standard_taxonomies):
+    standard_namespace2uris = collections.defaultdict(list)
+    for entry in standard_taxonomies:
+        if entry['AttType'] == 'SCH':
+            standard_namespace2uris[entry['Namespace']].append(entry['Href'])
+    return standard_namespace2uris
+
+def get_standard_namespace2prefix(standard_taxonomies):
+    standard_namespace2prefix = {}
+    for entry in standard_taxonomies:
+        if entry['Family'] != 'BASE' and entry['AttType'] == 'SCH' and 'Prefix' in entry:
+            standard_namespace2prefix[entry['Namespace']] = entry['Prefix']
+    return standard_namespace2prefix
+
 def is_extension_document(instance_uri, doc):
     return instance_uri.rsplit('/', 1)[0] == doc.uri.rsplit('/', 1)[0]
 
@@ -387,14 +402,15 @@ def detect_directed_cycles(network):
     return []
 
 
-def has_undirected_drs_cycles(drs, rel, visited):
+def check_undirected_drs_cycles(drs, rel, visited):
     if rel.target in visited:
-        return True
+        return rel.target
     visited.add(rel.target)
     for nextrel in drs.consecutive_relationships(rel):
-        if has_undirected_drs_cycles(drs, nextrel, visited):
-            return True
-    return False
+        node = check_undirected_drs_cycles(drs, nextrel, visited)
+        if node is not None:
+            return node
+    return None
 
 
 def has_concepts_in_presentation_linkbase(dts, concept1, concept2):
@@ -443,7 +459,7 @@ def get_derived_types(base_to_derived_types, type, derived_types):
         get_derived_types(base_to_derived_types, derived_type, derived_types)
 
 
-def validate_contexts(instance, error_log, CIK, contextrefs, used_concepts, standard_namespaces):
+def validate_contexts(instance, error_log, CIK, contextrefs, used_concepts, standard_namespace2uris):
     contexts_with_start_date = []
     for context in instance.contexts:
         period = context.period
@@ -516,7 +532,7 @@ def validate_contexts(instance, error_log, CIK, contextrefs, used_concepts, stan
             error_log.report(xbrl.Error.create('[EFM.6.5.38] Element {forever} is not allowed within a period.', forever=period.forever))
 
         for dim_value in context.dimension_aspect_values:
-            if isinstance(dim_value, xbrl.TypedDimensionAspectValue) and dim_value.dimension.target_namespace not in standard_namespaces:
+            if isinstance(dim_value, xbrl.TypedDimensionAspectValue) and dim_value.dimension.target_namespace not in standard_namespace2uris:
                 # 6.5.39 The dimension of xbrli:typedMember must be defined in a standard taxonomy.
                 error_log.report(xbrl.Error.create('[EFM.6.5.39] Context {context} references typed dimension {dim} from non standard taxonomy {tns}.', context=context, dim=dim_value.dimension, tns=dim_value.dimension.target_namespace))
 
@@ -587,7 +603,7 @@ def validate_facts(instance, error_log, catalog, domainItemTypes, textBlockItemT
                                                        location='decimals:value', fact=fact, rounded_value=str(fact.effective_numeric_value), decimals=fact.element.find_attribute('decimals')))
 
     # 6.5.14 An instance having a fact with non-nil content and the xml:lang attribute not equal to 'en-US' must also contain a fact using the same element and all other attributes with an xml:lang attribute equal to 'en-US'.
-    for key in unique_facts.keys():
+    for key in unique_facts:
         if key[3] != 'en-US':
             key2 = list(key)
             key2[3] = 'en-US'
@@ -599,7 +615,8 @@ def validate_facts(instance, error_log, catalog, domainItemTypes, textBlockItemT
 
 
 def validate_required_facts(instance, error_log, taxonomy_per_type, required_contexts, cikValue, cikNames, submissionType):
-    dei_namespace = None if 'DEI' not in taxonomy_per_type else taxonomy_per_type['DEI'].target_namespace
+    main_prefix = 'us-gaap' if 'us-gaap' in taxonomy_per_type else 'ifrs-full' if 'ifrs-full' in taxonomy_per_type else None
+    dei_namespace = None if 'dei' not in taxonomy_per_type else taxonomy_per_type['dei'][0].target_namespace
     qname_DocumentType = xml.QName('DocumentType', dei_namespace, 'dei')
     qname_DocumentPeriodEndDate = xml.QName('DocumentPeriodEndDate', dei_namespace, 'dei')
     qname_AmendmentFlag = xml.QName('AmendmentFlag', dei_namespace, 'dei')
@@ -615,7 +632,8 @@ def validate_required_facts(instance, error_log, taxonomy_per_type, required_con
     qname_DocumentFiscalYearFocus = xml.QName('DocumentFiscalYearFocus', dei_namespace, 'dei')
     qname_DocumentFiscalPeriodFocus = xml.QName('DocumentFiscalPeriodFocus', dei_namespace, 'dei')
     qname_EntityCommonStockSharesOutstanding = xml.QName('EntityCommonStockSharesOutstanding', dei_namespace, 'dei')
-    qname_StatementClassOfStockAxis = xml.QName('StatementClassOfStockAxis', taxonomy_per_type['US-GAAP'].target_namespace, 'us-gaap') if 'US-GAAP' in taxonomy_per_type else None
+    qname_StatementClassOfStockAxis = xml.QName('StatementClassOfStockAxis', taxonomy_per_type[main_prefix][0].target_namespace, main_prefix) if main_prefix in taxonomy_per_type else None
+    qname_ClassesOfShareCapitalAxis = xml.QName('ClassesOfShareCapitalAxis', taxonomy_per_type[main_prefix][0].target_namespace, main_prefix) if main_prefix in taxonomy_per_type else None    
 
     required_entity_elements = {
         '10-K': [qname_EntityRegistrantName, qname_EntityCentralIndexKey, qname_EntityCurrentReportingStatus, qname_EntityVoluntaryFilers, qname_CurrentFiscalYearEndDate, qname_EntityFilerCategory, qname_EntityWellKnownSeasonedIssuer, qname_EntityPublicFloat, qname_DocumentFiscalYearFocus, qname_DocumentFiscalPeriodFocus],
@@ -658,10 +676,10 @@ def validate_required_facts(instance, error_log, taxonomy_per_type, required_con
             if document_type_value not in supported_document_types:
                 error_log.report(xbrl.Error.create('[EFM.6.5.20] Unknown document type {DocumentType:value} in fact {DocumentType} in required context {context}.', DocumentType=document_type, context=required_context))
             else:
-                if 'RR' in taxonomy_per_type.keys() and document_type_value not in ['485BPOS', '497']:
-                    error_log.report(xbrl.Error.create('[EFM.6.22.3] Taxonomy class RR may not be used with document type {DocumentType}.', DocumentType=document_type))
-                if 'IFRS' in taxonomy_per_type.keys() and document_type_value in ['485BPOS', '497', 'K SDR', 'L SDR']:
-                    error_log.report(xbrl.Error.create('[EFM.6.22.3] Taxonomy class IFRS may not be used with document type {DocumentType}.', DocumentType=document_type))
+                if 'rr' in taxonomy_per_type and document_type_value not in ['485BPOS', '497']:
+                    error_log.report(xbrl.Error.create('[EFM.6.22.3] Taxonomy RR may not be used with document type {DocumentType}.', DocumentType=document_type))
+                if 'ifrs-full' in taxonomy_per_type and document_type_value in ['485BPOS', '497', 'K SDR', 'L SDR']:
+                    error_log.report(xbrl.Error.create('[EFM.6.22.3] Taxonomy IFRS may not be used with document type {DocumentType}.', DocumentType=document_type))
                 if submissionType is not None:
                     if submissionType not in submission_types:
                         error_log.report(xbrl.Error.create('[EFM.6.5.20] Unknown submission type {submissionType}.', severity=xml.ErrorSeverity.WARNING, submissionType=submissionType))
@@ -730,7 +748,7 @@ def validate_required_facts(instance, error_log, taxonomy_per_type, required_con
                     class_of_stock_facts.setdefault(None, []).append(fact)
                 else:
                     explicit_members = list(fact.context.entity.segment.explicit_members)
-                    if len(explicit_members) == 1 and explicit_members[0].dimension.qname == qname_StatementClassOfStockAxis:
+                    if len(explicit_members) == 1 and explicit_members[0].dimension.qname in (qname_StatementClassOfStockAxis, qname_ClassesOfShareCapitalAxis):
                         class_of_stock_facts.setdefault(explicit_members[0].value, []).append(fact)
 
             if not len(class_of_stock_facts):
@@ -797,7 +815,7 @@ def validate_labels(instance_uri, dts, error_log):
     #               error_log.report(xbrl.Error.create('[EFM.6.10.9] Non-numeric concept {concept} must not be linked to a label resource with numeric role {role:value}.', location=concept, concept=concept, role=xbrl.Error.Param(label.xlink_role,location=label.element.find_attribute(('role',xlink_namespace)))))
 
 
-def validate(instance_uri, instance, error_log, params={}, catalog=xml.Catalog.root_catalog()):
+def validate(instance_uri, instance, error_log, catalog=xml.Catalog.root_catalog(), **params):
 
     # instance object will be None if XBRL 2.1 validation was not successful
     if instance is None:
@@ -824,43 +842,22 @@ def validate(instance_uri, instance, error_log, params={}, catalog=xml.Catalog.r
 
     edgar_version, standard_taxonomies = parse_edgar_taxonomies(uri_edgar_taxonomies, catalog, error_log)
     standard_uris = {entry['Href'] for entry in standard_taxonomies}
-    standard_namespaces = dict([(entry['Namespace'], entry['Href']) for entry in standard_taxonomies if entry['AttType'] == 'SCH'])
     standard_authorities = {re_authority.match(entry['Namespace']).group(1) for entry in standard_taxonomies if entry['AttType'] == 'SCH'}
     standard_mapped_uris = {catalog.resolve_uri(uri): uri for uri in standard_uris}
     re_href = re.compile('(' + '|'.join(list(map('({0})'.format, standard_uris))) + '|([^/:#]*))(#[a-zA-Z_][a-zA-Z0-9_.-]*)?')
 
-    taxonomy_per_type = {}
-
     standard_roles = set(xbrl21_roles)
     standard_arcroles = set(xbrl21_arcroles)
     standard_concept_names = {}
-    for taxonomy in instance.dts.taxonomy_schemas:
-        if taxonomy.target_namespace:
-            tax_type = None
-            if re_dei.match(taxonomy.target_namespace):
-                tax_type = 'DEI'
-            elif re_gaap.match(taxonomy.target_namespace):
-                tax_type = 'US-GAAP'
-            elif re_ifrs.match(taxonomy.target_namespace):
-                tax_type = 'IFRS'
-            elif re_rr.match(taxonomy.target_namespace):
-                tax_type = 'RR'
 
-            if tax_type:
-                # 6.22 Supported Versions of XBRL Standard Taxonomies
-                if tax_type in taxonomy_per_type:
-                    error_log.report(
-                        xbrl.Error.create(
-                            '[EFM.6.22.3] Cannot reference both {type} {tns1} and {tns2} taxonomies.',
-                            location=instance,
-                            type=tax_type,
-                            tns1=xbrl.Error.Param(
-                                taxonomy_per_type[tax_type].target_namespace,
-                                location=taxonomy_per_type[tax_type].document.uri),
-                            tns2=xbrl.Error.Param(
-                                taxonomy.target_namespace,
-                                location=taxonomy.document.uri)))
-                taxonomy_per_type[tax_type] = taxonomy
+    standard_namespace2prefix = get_standard_namespace2prefix(standard_taxonomies)
+    standard_namespace2uris = get_standard_namespace2uris(standard_taxonomies)
+
+    taxonomy_per_type = collections.defaultdict(list)
+    for taxonomy in instance.dts.taxonomy_schemas:
+        prefix = standard_namespace2prefix.get(taxonomy.target_namespace)
+        if prefix:
+            taxonomy_per_type[prefix].append(taxonomy)
 
         if taxonomy.document.uri in standard_mapped_uris:
             for role_type in taxonomy.role_types:
@@ -870,9 +867,36 @@ def validate(instance_uri, instance, error_log, params={}, catalog=xml.Catalog.r
             for concept in taxonomy.concepts:
                 standard_concept_names[concept.name] = concept
 
-    if 'DEI' not in taxonomy_per_type:
+    if 'dei' not in taxonomy_per_type:
         error_log.report(xbrl.Error.create('Instance {xbrl} does not appear to be a SEC filing.', xbrl=instance.document_element))
         return
+
+    # 6.22 Supported Versions of XBRL Standard Taxonomies
+    for prefix, taxonomies in taxonomy_per_type.items():
+        if prefix == 'us-gaap':
+            for taxonomy in taxonomies:
+                if 'srt' in taxonomy_per_type and taxonomy.target_namespace[-10:] != taxonomy_per_type['srt'][0].target_namespace[-10:]:
+                    error_log.report(
+                        xbrl.Error.create(
+                            '[EFM.6.22.3] DTS contains the following conflicting taxonomies: {tns1} and {tns2}',
+                            location=instance,
+                            tns1=xbrl.Error.Param(
+                                taxonomy.target_namespace,
+                                location=taxonomy.document.uri),
+                            tns2=xbrl.Error.Param(
+                                taxonomy_per_type['srt'][0].target_namespace,
+                                location=taxonomy_per_type['srt'][0].document.uri)))
+        elif len(taxonomies) > 1:
+            error_log.report(
+                xbrl.Error.create(
+                    '[EFM.6.22.3] DTS contains the following conflicting taxonomies: {tns1} and {tns2}',
+                    location=instance,
+                    tns1=xbrl.Error.Param(
+                        taxonomy_per_type[prefix][0].target_namespace,
+                        location=taxonomy_per_type[prefix][0].document.uri),
+                    tns2=xbrl.Error.Param(
+                        taxonomy_per_type[prefix][1].target_namespace,
+                        location=taxonomy_per_type[prefix][1].document.uri)))
 
     if not instance_uri.endswith('.htm'):
         # 5.2.1.1 Valid ASCII Characters
@@ -918,7 +942,7 @@ def validate(instance_uri, instance, error_log, params={}, catalog=xml.Catalog.r
 
     domainItemTypes = set()
     textBlockItemTypes = set()
-    for ns in standard_namespaces:
+    for ns in standard_namespace2uris:
         domainItemType = instance.dts.schema.resolve_type_definition(('domainItemType', ns))
         if domainItemType is not None:
             get_derived_types(base_to_derived_types, domainItemType, domainItemTypes)
@@ -935,7 +959,7 @@ def validate(instance_uri, instance, error_log, params={}, catalog=xml.Catalog.r
 
         # 6.22 Supported Versions of XBRL Standard Taxonomies
         if not is_extension_document(instance_uri, doc):
-            hint = xbrl.Error.create('Hint: See {uri} for more information.', uri=xbrl.Error.ExternalLinkParam('http://www.sec.gov/info/edgar/edgartaxonomies.shtml'))
+            hint = xbrl.Error.create('Hint: See {uri} for more information.', uri=xbrl.Error.ExternalLinkParam('https://www.sec.gov/info/edgar/edgartaxonomies.shtml'))
             error_log.report(xbrl.Error.create('[EFM.6.22.2] Document {uri} is not a supported XBRL Standard Taxonomy for EDGAR version {version}.', location='uri', uri=doc.uri, children=[hint], version=edgar_version))
             continue
 
@@ -968,8 +992,8 @@ def validate(instance_uri, instance, error_log, params={}, catalog=xml.Catalog.r
                     error_log.report(xbrl.Error.create('[EFM.6.7.1] {include} is not allowed in a company extension schema.', include=ref))
                 # 6.7.2 If an xsd:import element has a namespace attribute equal to a standard taxonomy schema, then its schemaLocation attribute must be the standard taxonomy assigned to that namespace.
                 elif isinstance(ref, xsd.Import):
-                    if ref.namespace in standard_namespaces and ref.schema_location != standard_namespaces[ref.namespace]:
-                        error_log.report(xbrl.Error.create('[EFM.6.7.2] {xsimport} for {namespace} must point to {uri}.', location='xsimport', xsimport=ref, namespace=ref.namespace, uri=standard_namespaces[ref.namespace]))
+                    if ref.namespace in standard_namespace2uris and ref.schema_location not in standard_namespace2uris[ref.namespace]:
+                        error_log.report(xbrl.Error.create('[EFM.6.7.2] {xsimport} for {namespace} must point to {uri}.', location='xsimport', xsimport=ref, namespace=ref.namespace, uri=standard_namespace2uris[ref.namespace][0]))
 
             recommended_namespace_prefix = None
             if schema.target_namespace is None:
@@ -1282,7 +1306,7 @@ def validate(instance_uri, instance, error_log, params={}, catalog=xml.Catalog.r
             if label_attr.normalized_value not in to_labels:
                 error_log.report(xbrl.Error.create('[EFM.6.5.33] Non-empty footnote {footnote} must be linked to at least one fact.', location=elem, footnote=elem))
 
-    cikValue, required_contexts = validate_contexts(instance, error_log, CIK, contextrefs, used_concepts, standard_namespaces)
+    cikValue, required_contexts = validate_contexts(instance, error_log, CIK, contextrefs, used_concepts, standard_namespace2uris)
     validate_units(instance, error_log)
 
     validate_required_facts(instance, error_log, taxonomy_per_type, required_contexts, cikValue, cikNames, submissionType)
@@ -1391,8 +1415,9 @@ def validate(instance_uri, instance, error_log, params={}, catalog=xml.Catalog.r
             for dim in network.roots:
                 visited = set()
                 for rel in network.relationships_from(dim):
-                    if has_undirected_drs_cycles(drs, rel, visited):
-                        error_log.report(xbrl.Error.create('[EFM.6.16.4] DRS must not have undirected cycles in domain member network starting from relationship {arc}.', location=rel.arc, arc=rel.arc))
+                    cycle_member = check_undirected_drs_cycles(drs, rel, visited)
+                    if cycle_member is not None:
+                        error_log.report(xbrl.Error.create('[EFM.6.16.4] DRS has an undirected cycle in domain member network with role {role} between {dim} and {member} starting from relationship {arc}.', location=rel.arc, dim=dim, member=cycle_member, arc=rel.arc, role=xbrl.Error.Param(rel.role)))
                         break
 
         elif baseset.arcrole == 'http://xbrl.org/int/dim/arcrole/dimension-default':
@@ -1404,13 +1429,15 @@ def validate(instance_uri, instance, error_log, params={}, catalog=xml.Catalog.r
         elif baseset.arcrole == 'http://xbrl.org/int/dim/arcrole/domain-member':
             network = baseset.network_of_relationships()
 
+            primary_items = set(drs.primary_items(baseset.role))
             # 6.16.4 The xlink:arcrole attributes 'http://xbrl.org/int/dim/arcrole/domain-member' and 'http://xbrl.org/int/dim/arcrole/dimension-domain' must have no undirected cycles in any Directed Relationship Set as defined in XBRL Dimensions 1.0.
-            for primary_item in network.roots:
-                if primary_item.type_definition not in domainItemTypes:
+            for item in network.roots:
+                if item in primary_items and item.type_definition not in domainItemTypes:
                     visited = set()
-                    for rel in network.relationships_from(primary_item):
-                        if has_undirected_drs_cycles(drs, rel, visited):
-                            error_log.report(xbrl.Error.create('[EFM.6.16.4] DRS must not have undirected cycles in domain member network starting from relationship {arc}.', location=rel.arc, arc=rel.arc))
+                    for rel in network.relationships_from(item):
+                        cycle_item = check_undirected_drs_cycles(drs, rel, visited)
+                        if cycle_item:
+                            error_log.report(xbrl.Error.create('[EFM.6.16.4] DRS has an undirected cycle in domain member network with role {role} between {primary_item} and {item} starting from relationship {arc}.', location=rel.arc, primary_item=item, item=cycle_item, arc=rel.arc, role=xbrl.Error.Param(rel.role)))
                             break
 
         if baseset.extended_link_qname == qname_definitionLink:
@@ -1635,7 +1662,7 @@ def validate(instance_uri, instance, error_log, params={}, catalog=xml.Catalog.r
             if used_concepts.get(rel.source, False) and used_concepts.get(rel.target, False) and not has_concepts_in_presentation_linkbase(instance.dts, rel.source, rel.target):
                 error_log.report(xbrl.Error.create('[EFM.6.14.5] The source {source} and target {target} of calculation relationship {arc} must also have effective presentation relationships with the same extended link role.', location=rel.arc, arc=rel.arc, source=rel.source, target=rel.target))
 
-    for concept in used_concepts.keys():
+    for concept in used_concepts:
         labels = {}
         translated_roles = {}
         for label in concept.labels():
@@ -1688,10 +1715,16 @@ def validate(instance_uri, instance, error_log, params={}, catalog=xml.Catalog.r
     validate_labels(instance_uri, instance.dts, error_log)
 
     if params.get('enableDqcValidation', 'false') == 'true':
-        dqc_validation.validate(instance, error_log, params)
+        dqc_validation.validate(instance, error_log, **params)
 
 # Main entry point, will be called by RaptorXML after the DTS discovery from XBRL instance has finished
 
+def check_for_UTR_concept(dts, standard_namespace2uris):
+
+    for ns in standard_namespace2uris:
+        if dts.resolve_concept(('UTR', ns)):
+            return True
+    return False
 
 def on_xbrl_finished_dts(job, dts):
     if dts is not None:
@@ -1706,20 +1739,17 @@ def on_xbrl_finished_dts(job, dts):
             uri_edgar_taxonomies = job.script_params.get('edgar-taxonomies-url', urljoin('file:', pathname2url(os.path.join(os.path.dirname(__file__), 'edgartaxonomies.xml'))))
 
             edgar_version, standard_taxonomies = parse_edgar_taxonomies(uri_edgar_taxonomies, job.catalog, job.error_log)
-            standard_namespaces = dict([(entry['Namespace'], entry['Href']) for entry in standard_taxonomies if entry['AttType'] == 'SCH'])
+            standard_namespace2uris = get_standard_namespace2uris(standard_taxonomies)
 
-            bEnableUTR = False
-            for ns in standard_namespaces:
-                if dts.resolve_concept(('UTR', ns)):
-                    bEnableUTR = True
-                    break
+            bEnableUTR = check_for_UTR_concept(dts, standard_namespace2uris)
+            
         job.options['utr'] = bEnableUTR
 
 # Main entry point, will be called by RaptorXML after the XBRL instance validation job has finished
 
 
 def on_xbrl_finished(job, instance):
-    validate(job.input_filenames[0], instance, job.error_log, job.script_params, job.catalog)
+    validate(job.input_filenames[0], instance, job.error_log, catalog=job.catalog, **job.script_params)
 
 
 # 5.2.5 Inline XBRL Documents
@@ -1845,7 +1875,7 @@ def get_sec_ix_hidden(value):
 def check_ixbrl_namespaces(elem, error_log):
     for nsattr in elem.namespace_attributes:
         namespace = nsattr.normalized_value
-        if namespace in allowed_namespace_prefixes.keys():
+        if namespace in allowed_namespace_prefixes:
             prefix = '' if nsattr.prefix is None else nsattr.local_name
             recommended_prefix = allowed_namespace_prefixes[namespace]
             if prefix != recommended_prefix:

@@ -14,20 +14,20 @@
 __copyright__ = 'Copyright 2015-2018 Altova GmbH'
 __license__ = 'http://www.apache.org/licenses/LICENSE-2.0'
 
-# Executes the SEC EDGAR public test suite (http://www.sec.gov/info/edgar/ednews/efmtest/efm-43-170913.zip).
+# Executes the SEC EDGAR public test suite (http://www.sec.gov/info/edgar/ednews/efmtest/efm-47-180610.zip).
 # See http://www.sec.gov/spotlight/xbrl/interactive_data_test_suite.shtml for more information.
 #
 # Example usage:
-#   raptorxmlxbrl script efm_testsuite.py /path/to/efm-43-170913/conf/testcases.xml --log=log.txt --csv-report=report.csv
+#   raptorxmlxbrl script efm_testsuite.py /path/to/efm-47-180610/conf/testcases.xml --log=log.txt --csv-report=report.csv
 #
 # Show available options
 #   raptorxmlxbrl script efm_testsuite.py -h
 # Create a CSV summary file
-#   raptorxmlxbrl script efm_testsuite.py /path/to/efm-43-170913/conf/testcases.xml --log efm_testsuite.log --csv-report efm_testsuite.csv
+#   raptorxmlxbrl script efm_testsuite.py /path/to/efm-47-180610/conf/testcases.xml --log efm_testsuite.log --csv-report efm_testsuite.csv
 # Create an XML summary file
-#   raptorxmlxbrl script efm_testsuite.py /path/to/efm-43-170913/conf/testcases.xml --log efm_testsuite.log --xml-report efm_testsuite.xml
+#   raptorxmlxbrl script efm_testsuite.py /path/to/efm-47-180610/conf/testcases.xml --log efm_testsuite.log --xml-report efm_testsuite.xml
 # Run only specific testcases
-#   raptorxmlxbrl script efm_testsuite.py /path/to/efm-43-170913/conf/testcases.xml --log efm_testsuite.log --csv-report efm_testsuite.xml --testcase "605-01" "605-02"
+#   raptorxmlxbrl script efm_testsuite.py /path/to/efm-47-180610/conf/testcases.xml --log efm_testsuite.log --csv-report efm_testsuite.xml --testcase "605-01" "605-02"
 
 import altova_api.v2.xml as xml
 import altova_api.v2.xsd as xsd
@@ -44,6 +44,8 @@ import os
 import re
 import time
 import urllib.parse
+from pathlib import Path
+
 
 re_error_code = re.compile(r'\[EFM\.(\d+\.\d+(\.\d+)?)\] ')
 re_error_code_lax = re.compile(r'\[EFM.+]')
@@ -372,7 +374,7 @@ def cmp_output(l, r):
     return hash_left == hash_right
 
 
-def execute_variation(testcase, variation):
+def execute_variation(testcase, variation, global_params, standard_namespace2uris):
     """Peforms the actual XBRL instance or taxonomy validation and returns 'PASS' if the actual outcome is conformant with the result specified in the variation."""
     logging.info('[%s%s] Start executing variation', testcase['number'], variation['id'])
 
@@ -402,8 +404,8 @@ def execute_variation(testcase, variation):
         bEnableUTR = forceUtrValidationParam[0]['value'] == 'true'
     else:
         dts, _ = xbrl.taxonomy.DTS.create_from_url(schema['uri'] for schema in variation['data']['schemas'])
-        if dts and dts.resolve_concept(xml.QName('UTR', 'http://xbrl.sec.gov/dei/2014-01-31')):
-            bEnableUTR = True
+        if dts:
+            bEnableUTR = efm_validation.check_for_UTR_concept(dts, standard_namespace2uris)
 
     bNotEDGARDependent = 'Not EDGAR Dependent' in testcase['name']
     has_ixbrl_warnings = False
@@ -427,7 +429,9 @@ def execute_variation(testcase, variation):
         instance, error_log = xbrl.Instance.create_from_url(uri, utr=utr if bEnableUTR else None)
 
     if not bNotEDGARDependent and not has_ixbrl_errors:
-        efm_validation.validate(uri, instance, error_log, {param['name']: param['value'] for param in variation['data']['parameters']})
+        params = {param['name']: param['value'] for param in variation['data']['parameters']}
+        params.update(global_params)    
+        efm_validation.validate(uri, instance, error_log, **params)
 
     if error_log.has_errors() and logging.getLogger().isEnabledFor(logging.DEBUG):
         logging.debug('[%s%s] Error log:\n%s', testcase['number'], variation['id'], '\n'.join(error.text for error in error_log))
@@ -504,7 +508,20 @@ def execute_testsuite(testsuite, args):
     """Runs all testcase variations in parallel and returns a dict with the results of each testcase variation."""
     logging.info('Start executing %s variations in %d testcases', sum(len(testcase['variations']) for testcase in testsuite['testcases']), len(testsuite['testcases']))
     start = time.time()
-
+    
+    if urllib.parse.urlparse(args.uri).scheme != "":
+        basepath = os.path.dirname(os.path.dirname(args.uri))
+    else:
+        basepath = Path(Path.cwd(), args.uri).parent.parent.as_uri()
+        
+    global_params = {
+        'edgar-taxonomies-url': basepath + '/lib/edgartaxonomies.xml',
+        'edbody-url': basepath + '/lib/edbody.dtd'
+    }
+        
+    edgar_version, standard_taxonomies = efm_validation.parse_edgar_taxonomies(global_params['edgar-taxonomies-url'], xml.Catalog.root_catalog(), None)
+    standard_namespace2uris = efm_validation.get_standard_namespace2uris(standard_taxonomies)    
+    
     results = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.max_workers) as executor:
 
@@ -516,7 +533,7 @@ def execute_testsuite(testsuite, args):
             for variation in testcase['variations']:
                 if args.variation_ids and variation['id'] not in args.variation_ids:
                     continue
-                futures[executor.submit(execute_variation, testcase, variation)] = (testcase['uri'], variation['id'])
+                futures[executor.submit(execute_variation, testcase, variation, global_params, standard_namespace2uris)] = (testcase['uri'], variation['id'])
 
         # Wait for all futures to finish
         for future in concurrent.futures.as_completed(futures):

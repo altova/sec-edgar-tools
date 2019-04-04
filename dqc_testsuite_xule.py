@@ -11,38 +11,35 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-__copyright__ = 'Copyright 2015-2018 Altova GmbH'
+__copyright__ = 'Copyright 2015-2019 Altova GmbH'
 __license__ = 'http://www.apache.org/licenses/LICENSE-2.0'
 
 # Executes the XBRL US Data Quality Committee conformance test suite.
 #
 # This script drives Altova RaptorXML+XBRL to execute the DQC test suite files in
-# https://github.com/DataQualityCommittee/dqc_us_rules/tree/v5.0.4/tests/test_suite/DQC_Testcases_Release_All_V5.zip.
-# See https://github.com/DataQualityCommittee/dqc_us_rules/tree/v5.0.4/tests/test_suite for more information.
+# https://github.com/DataQualityCommittee/dqc_us_rules/tree/v6.1.2/tests/test_suite/DQC_Testcases_Release_All_V6.zip.
+# See https://github.com/DataQualityCommittee/dqc_us_rules/tree/v6.1.2/tests/test_suite for more information.
 #
 # Example usage:
 #
 # Show available options
-#   raptorxmlxbrl script dqc_testsuite.py -h
+#   raptorxmlxbrl script dqc_testsuite_xule.py -h
 # Create a CSV summary file
-#   raptorxmlxbrl script dqc_testsuite.py /path/to/DQC_Testcases_Release_All_V5/index.xml --log dqc_testsuite.log --csv-report dqc_testsuite.csv
+#   raptorxmlxbrl script dqc_testsuite_xule.py /path/to/DQC_Testcases_Release_All_V6/index.xml --log dqc_testsuite.log --csv-report dqc_testsuite.csv
 # Create an XML summary file
-#   raptorxmlxbrl script dqc_testsuite.py /path/to/DQC_Testcases_Release_All_V5/index.xml --log dqc_testsuite.log --xml-report dqc_testsuite.xml
+#   raptorxmlxbrl script dqc_testsuite_xule.py /path/to/DQC_Testcases_Release_All_V6/index.xml --log dqc_testsuite.log --xml-report dqc_testsuite.xml
 # Run only specific testcases
-#   raptorxmlxbrl script dqc_testsuite.py /path/to/DQC_Testcases_Release_All_V5/index.xml --log dqc_testsuite.log --csv-report dqc_testsuite.xml --testcase DQC_0004 DQC_0005
-
-import altova_api.v2.xml as xml
-import altova_api.v2.xsd as xsd
-import altova_api.v2.xbrl as xbrl
-import dqc_validation
+#   raptorxmlxbrl script dqc_testsuite_xule.py /path/to/DQC_Testcases_Release_All_V6/index.xml --log dqc_testsuite.log --csv-report dqc_testsuite.xml --testcase DQC_0004 DQC_0005
 
 import argparse
 import collections
 import concurrent.futures
 import datetime
+import json
 import logging
 import multiprocessing
 import os
+import pickle
 import re
 import tempfile
 import time
@@ -50,8 +47,8 @@ import urllib.parse
 import urllib.request
 import zipfile
 
-re_error_code = re.compile(r'\[(DQC\.US\.\d+\.\d+)\] ')
-
+from altova_api.v2 import xml, xsd, xbrl, beta, ProductInfo
+xbrl.xule = beta.xbrl.xule
 
 class ValidationError(Exception):
     """User-defined exception representing a validation error."""
@@ -62,6 +59,17 @@ class ValidationError(Exception):
     def __str__(self):
         return str(self.value)
 
+def setup_xule_processor(root_dir, catalog=None):
+    xp = xbrl.xule.Processor(catalog=catalog)
+    with open(os.path.join(root_dir,'xule','rulesetMap.json')) as f:
+        for ns, path in json.load(f).items():
+            ruleset_path = os.path.join(root_dir,'dqc_us_rules',path.split('?')[0].split('/dqc_us_rules/')[-1])
+            logging.info('Loading ruleset %s', ruleset_path)
+            try:
+                xp.add_ruleset(ruleset_path, ns)
+            except:
+                logging.exception('Error loading ruleset %s', ruleset_path)
+    return xp
 
 def attr_val(elem, attr_name):
     """Returns the value of attribute *attr_name* on element *elem* or None if no such attribute does not exists."""
@@ -249,7 +257,7 @@ def get_uri_in_zip(zipURI, catalog):
     return uri
 
 
-def execute_variation(testcase, variation, catalog, args):
+def execute_variation(testcase, variation, xp, catalog, args):
     """Peforms the actual XBRL instance or taxonomy validation and returns 'PASS' if the actual outcome is conformant with the result specified in the variation."""
     logging.info('[%s] Start executing variation', variation['id'])
 
@@ -261,20 +269,23 @@ def execute_variation(testcase, variation, catalog, args):
 
     logging.info('[%s] Validating instance %s', variation['id'], uri)
     instance, error_log = xbrl.Instance.create_from_url(uri, error_limit=500, catalog=catalog)
-    dqc_validation.validate(instance, error_log, **{'suppressErrors': variation['results']['blockedMessageCodes']})
-    if error_log.has_errors() and logging.getLogger().isEnabledFor(logging.DEBUG):
-        logging.debug('[%s] Error log:\n%s', variation['id'], '\n'.join(error.text for error in error_log))
-
+    
     error_counts = collections.Counter()
     for error in error_log:
         if error.severity == xml.ErrorSeverity.ERROR:
-            m = re_error_code.search(error.text)
-            if m:
-                error_counts[m.group(1)] += 1
-            else:
-                error_counts['other'] += 1
+            error_counts['other'] += 1
 
-    passed = False if len(variation['results']['errors']) == 0 and error_log.has_errors() else True
+    if instance:
+        for result in xp.execute(instance):
+            if result.severity == xbrl.xule.Severity.ERROR:
+                rule_name = result.effective_rule_name
+                if variation['results']['blockedMessageCodes'] is None or rule_name not in variation['results']['blockedMessageCodes']:
+                    error_counts[rule_name] += 1
+    
+    #if error_log.has_errors() and logging.getLogger().isEnabledFor(logging.DEBUG):
+    #    logging.debug('[%s] Error log:\n%s', variation['id'], '\n'.join(error.text for error in error_log))
+
+    passed = False if len(variation['results']['errors']) == 0 and len(error_counts) > 0 else True
     for code, error in variation['results']['errors'].items():
         if error['count'] != error_counts[code]:
             passed = False
@@ -357,6 +368,23 @@ def collect_remote_uris(testsuite, args):
     """Downloads remote instances with all references files and creates a catalog."""
     logging.info('Start collecting remote files')
     remote_uris = set()
+    remote_uris.add('https://raw.githubusercontent.com/DataQualityCommittee/dqc_us_rules/master/dqc_us_rules/resources/DQC_US_0011/dqc_0011.csv')
+    remote_uris.add('https://raw.githubusercontent.com/DataQualityCommittee/dqc_us_rules/master/dqc_us_rules/resources/DQC_US_0015/dqc_15_concepts.csv')
+    remote_uris.add('https://raw.githubusercontent.com/DataQualityCommittee/dqc_us_rules/master/dqc_us_rules/resources/DQC_US_0015/dqc_15_dei_concepts.csv')
+    remote_uris.add('https://raw.githubusercontent.com/DataQualityCommittee/dqc_us_rules/master/dqc_us_rules/resources/DQC_US_0015/dqc_15_srt_concepts.csv')
+    remote_uris.add('https://raw.githubusercontent.com/DataQualityCommittee/dqc_us_rules/master/dqc_us_rules/resources/DQC_US_0015/dqc_15_usgaap_2015_concepts.csv')
+    remote_uris.add('https://raw.githubusercontent.com/DataQualityCommittee/dqc_us_rules/master/dqc_us_rules/resources/DQC_US_0015/dqc_15_usgaap_2016_concepts.csv')
+    remote_uris.add('https://raw.githubusercontent.com/DataQualityCommittee/dqc_us_rules/master/dqc_us_rules/resources/DQC_US_0015/dqc_15_usgaap_2017_concepts.csv')
+    remote_uris.add('https://raw.githubusercontent.com/DataQualityCommittee/dqc_us_rules/master/dqc_us_rules/resources/DQC_US_0015/dqc_15_usgaap_2018_concepts.csv')    
+    remote_uris.add('https://raw.githubusercontent.com/DataQualityCommittee/dqc_us_rules/v6/dqc_us_rules/resources/DQC_US_0011/dqc_0011.csv')
+    remote_uris.add('https://raw.githubusercontent.com/DataQualityCommittee/dqc_us_rules/v6/dqc_us_rules/resources/DQC_US_0015/dqc_15_concepts.csv')
+    remote_uris.add('https://raw.githubusercontent.com/DataQualityCommittee/dqc_us_rules/v6/dqc_us_rules/resources/DQC_US_0015/dqc_15_dei_concepts.csv')
+    remote_uris.add('https://raw.githubusercontent.com/DataQualityCommittee/dqc_us_rules/v6/dqc_us_rules/resources/DQC_US_0015/dqc_15_srt_concepts.csv')
+    remote_uris.add('https://raw.githubusercontent.com/DataQualityCommittee/dqc_us_rules/v6/dqc_us_rules/resources/DQC_US_0015/dqc_15_usgaap_2015_concepts.csv')
+    remote_uris.add('https://raw.githubusercontent.com/DataQualityCommittee/dqc_us_rules/v6/dqc_us_rules/resources/DQC_US_0015/dqc_15_usgaap_2016_concepts.csv')
+    remote_uris.add('https://raw.githubusercontent.com/DataQualityCommittee/dqc_us_rules/v6/dqc_us_rules/resources/DQC_US_0015/dqc_15_usgaap_2017_concepts.csv')
+    remote_uris.add('https://raw.githubusercontent.com/DataQualityCommittee/dqc_us_rules/v6/dqc_us_rules/resources/DQC_US_0015/dqc_15_usgaap_2018_concepts.csv')
+    
     testsuite_path, testsuite_index = os.path.split(testsuite['uri'])
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.max_workers) as executor:
@@ -365,6 +393,8 @@ def collect_remote_uris(testsuite, args):
         for testcase in testsuite['testcases']:
             if args.testcase_numbers and testcase['number'] not in args.testcase_numbers:
                 continue
+            if args.exclude_testcase_numbers and testcase['number'] in args.exclude_testcase_numbers:
+                continue                
             for variation in testcase['variations']:
                 if args.variation_ids and variation['id'] not in args.variation_ids:
                     continue
@@ -401,6 +431,8 @@ def execute_testsuite(testsuite, args):
         if not catalog:
             raise ValidationError('\n'.join(error.text for error in error_log))
 
+    xp = setup_xule_processor(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(args.uri)))), catalog)
+            
     results = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.max_workers) as executor:
 
@@ -409,10 +441,12 @@ def execute_testsuite(testsuite, args):
         for testcase in testsuite['testcases']:
             if args.testcase_numbers and testcase['number'] not in args.testcase_numbers:
                 continue
+            if args.exclude_testcase_numbers and testcase['number'] in args.exclude_testcase_numbers:
+                continue
             for variation in testcase['variations']:
                 if args.variation_ids and variation['id'] not in args.variation_ids:
                     continue
-                futures[executor.submit(execute_variation, testcase, variation, catalog, args)] = (testcase['uri'], variation['id'])
+                futures[executor.submit(execute_variation, testcase, variation, xp, catalog, args)] = (testcase['uri'], variation['id'])
 
         # Wait for all futures to finish
         for future in concurrent.futures.as_completed(futures):
@@ -530,7 +564,7 @@ def run_xbrl_testsuite(uri, args):
         testsuite = load_testsuite(uri)
         if args.create_catalog:
             target_dir = os.path.dirname(file_uri_to_os_path(testsuite['uri']))
-            remote_uris = collect_remote_uris(testsuite, args)
+            remote_uris = collect_remote_uris(testsuite, args)            
             download_files_and_create_catalog(remote_uris, target_dir)
         results, runtime = execute_testsuite(testsuite, args)
         logging.info('Start generating testsuite report')
@@ -568,6 +602,7 @@ def parse_args():
     parser.add_argument('--xml-report', metavar='XML_FILE', dest='xml_file', help='write testsuite results to xml')
     parser.add_argument('--relative-uris', dest='relative_uris', action='store_true', help='write testcase uris relative to testsuite index file')
     parser.add_argument('-t', '--testcase', metavar='TESTCASE_NUMBER', dest='testcase_numbers', nargs='*', help='limit execution to only this testcase number')
+    parser.add_argument('--exclude-testcase', metavar='EXCLUDE_TESTCASE_NUMBER', dest='exclude_testcase_numbers', nargs='*', help='exclude execution of the given testcase number')
     parser.add_argument('-v', '--variation', metavar='VARIATION_ID', dest='variation_ids', nargs='*', help='limit execution to only this variation id')
     parser.add_argument('-w', '--workers', metavar='MAX_WORKERS', type=int, dest='max_workers', default=multiprocessing.cpu_count(), help='limit number of workers')
     parser.add_argument('--create-catalog', dest='create_catalog', action='store_true', help='download all remote files and create a catalog for them')

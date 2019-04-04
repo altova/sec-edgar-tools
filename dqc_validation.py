@@ -1362,7 +1362,7 @@ def parse_suppress_errors(params):
     return val.split('|')
 
 
-def validate(instance, error_log, params={}):
+def validate(instance, error_log, **params):
     """Performs additional validation of xBRL instance according to DQC rules."""
     if instance:
         error_log.report(xbrl.Error.create(
@@ -1419,4 +1419,4 @@ def on_xbrl_finished_dts(job, dts):
 
 def on_xbrl_finished(job, instance):
     # instance object will be None if XBRL 2.1 validation was not successful.
-    validate(instance, job.error_log, job.script_params)
+    validate(instance, job.error_log, **job.script_params)
